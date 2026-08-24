@@ -3,9 +3,9 @@ const crypto = require("crypto");
 const dotenv = require("dotenv");
 const path = require("path");
 
-// =====================================================
-// ENVIRONMENT
-// =====================================================
+
+
+
 
 dotenv.config({
   path: path.resolve(__dirname, "..", ".env"),
@@ -16,9 +16,9 @@ const dbName =
 
 let pool = null;
 
-// =====================================================
-// DATABASE CONNECTION
-// =====================================================
+
+
+
 
 function getConnectionConfig() {
   return {
@@ -44,9 +44,9 @@ function getConnectionConfig() {
   };
 }
 
-// =====================================================
-// PASSWORD HASH
-// =====================================================
+
+
+
 
 function hashPassword(password) {
   if (!password) {
@@ -71,9 +71,9 @@ function hashPassword(password) {
   return `${salt}$${hash}`;
 }
 
-// =====================================================
-// PASSWORD VERIFY
-// =====================================================
+
+
+
 
 function verifyPassword(
   password,
@@ -129,9 +129,9 @@ function verifyPassword(
   }
 }
 
-// =====================================================
-// SAFE ALTER
-// =====================================================
+
+
+
 
 async function safeAlter(
   label,
@@ -151,9 +151,9 @@ async function safeAlter(
   }
 }
 
-// =====================================================
-// CHECK COLUMN
-// =====================================================
+
+
+
 
 async function columnExists(
   table,
@@ -178,9 +178,9 @@ async function columnExists(
   return rows.length > 0;
 }
 
-// =====================================================
-// GET COLUMN TYPE
-// =====================================================
+
+
+
 
 async function getColumnType(
   table,
@@ -207,9 +207,9 @@ async function getColumnType(
     : null;
 }
 
-// =====================================================
-// CHECK TABLE
-// =====================================================
+
+
+
 
 async function tableExists(
   table
@@ -231,9 +231,9 @@ async function tableExists(
   return rows.length > 0;
 }
 
-// =====================================================
-// CREATE DEFAULT ADMIN
-// =====================================================
+
+
+
 
 async function ensureDefaultAdmin() {
   try {
@@ -308,9 +308,9 @@ async function ensureDefaultAdmin() {
   }
 }
 
-// =====================================================
-// CREATE DEFAULT CHIEF EDITOR
-// =====================================================
+
+
+
 
 async function ensureDefaultChiefEditor() {
   try {
@@ -386,9 +386,9 @@ async function ensureDefaultChiefEditor() {
   }
 }
 
-// =====================================================
-// DATABASE INITIALIZATION
-// =====================================================
+
+
+
 
 async function init() {
   if (pool) {
@@ -402,9 +402,9 @@ async function init() {
     `[database] Connecting to ${connectionConfig.host}:${connectionConfig.port}`
   );
 
-  // ===================================================
-  // CREATE DATABASE
-  // ===================================================
+  
+  
+  
 
   const connection =
     await mysql.createConnection(
@@ -427,9 +427,9 @@ async function init() {
     await connection.end();
   }
 
-  // ===================================================
-  // CONNECTION POOL
-  // ===================================================
+  
+  
+  
 
   pool = mysql.createPool({
     ...connectionConfig,
@@ -445,17 +445,17 @@ async function init() {
     charset: "utf8mb4",
   });
 
-  // ===================================================
-  // POSTS
-  // ===================================================
-  //
-  // NOTE: approved_by is VARCHAR, not INT.
-  //
-  // The application stores the approver's display
-  // name (full_name or email) here, not a numeric
-  // user id, so the column type must match what is
-  // actually written by server.js.
-  //
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -498,9 +498,9 @@ async function init() {
     "[database] posts table ready."
   );
 
-  // ===================================================
-  // ADMINS
-  // ===================================================
+  
+  
+  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
@@ -532,9 +532,9 @@ async function init() {
     "[database] admins table ready."
   );
 
-  // ===================================================
-  // CHIEF EDITORS
-  // ===================================================
+  
+  
+  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chief_editors (
@@ -569,9 +569,45 @@ async function init() {
     "[database] chief_editors table ready."
   );
 
-  // ===================================================
-  // EMPLOYEES
-  // ===================================================
+  
+  
+  
+
+  if (
+    !(await columnExists(
+      "chief_editors",
+      "resetToken"
+    ))
+  ) {
+    await safeAlter(
+      "chief_editors.resetToken",
+      `
+      ALTER TABLE chief_editors
+      ADD COLUMN resetToken VARCHAR(128)
+      DEFAULT NULL
+      `
+    );
+  }
+
+  if (
+    !(await columnExists(
+      "chief_editors",
+      "resetExpires"
+    ))
+  ) {
+    await safeAlter(
+      "chief_editors.resetExpires",
+      `
+      ALTER TABLE chief_editors
+      ADD COLUMN resetExpires DATETIME
+      DEFAULT NULL
+      `
+    );
+  }
+
+  
+  
+  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employees (
@@ -605,9 +641,9 @@ async function init() {
     )
   `);
 
-  // ===================================================
-  // EMPLOYEE MIGRATIONS
-  // ===================================================
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -690,9 +726,9 @@ async function init() {
     );
   }
 
-  // ===================================================
-  // NORMALIZE EMPLOYEE ROLES
-  // ===================================================
+  
+  
+  
 
   try {
     await pool.query(`
@@ -714,9 +750,9 @@ async function init() {
     "[database] employees table ready."
   );
 
-  // ===================================================
-  // COMMENTS
-  // ===================================================
+  
+  
+  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS comments (
@@ -747,9 +783,9 @@ async function init() {
     )
   `);
 
-  // ===================================================
-  // COMMENTS MIGRATIONS
-  // ===================================================
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -819,9 +855,9 @@ async function init() {
     "[database] comments table ready."
   );
 
-  // ===================================================
-  // ADVERTISEMENTS
-  // ===================================================
+  
+  
+  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS advertisements (
@@ -858,9 +894,9 @@ async function init() {
     )
   `);
 
-  // ===================================================
-  // ADVERTISEMENT MIGRATIONS
-  // ===================================================
+  
+  
+  
 
   const adColumns = [
     [
@@ -924,13 +960,13 @@ async function init() {
     "[database] advertisements table ready."
   );
 
-  // ===================================================
-  // POST MIGRATIONS
-  // ===================================================
+  
+  
+  
 
-  // ---------------------------------------------------
-  // createdDate
-  // ---------------------------------------------------
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -949,9 +985,9 @@ async function init() {
     );
   }
 
-  // ---------------------------------------------------
-  // youtube_url
-  // ---------------------------------------------------
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -969,9 +1005,9 @@ async function init() {
     );
   }
 
-  // ---------------------------------------------------
-  // Author
-  // ---------------------------------------------------
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -989,13 +1025,13 @@ async function init() {
     );
   }
 
-  // ===================================================
-  // POST APPROVAL MIGRATIONS
-  // ===================================================
+  
+  
+  
 
-  // ---------------------------------------------------
-  // status
-  // ---------------------------------------------------
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -1015,16 +1051,16 @@ async function init() {
     );
   }
 
-  // ---------------------------------------------------
-  // approved_by
-  // ---------------------------------------------------
-  //
-  // Must be VARCHAR because server.js stores the
-  // approver's display name (full_name/email), not
-  // a numeric id. If an older deployment created this
-  // column as INT, widen it in place so existing rows
-  // (and any legacy numeric ids in them) are preserved.
-  //
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -1062,9 +1098,9 @@ async function init() {
     }
   }
 
-  // ---------------------------------------------------
-  // approved_at
-  // ---------------------------------------------------
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -1082,9 +1118,9 @@ async function init() {
     );
   }
 
-  // ---------------------------------------------------
-  // rejection_reason
-  // ---------------------------------------------------
+  
+  
+  
 
   if (
     !(await columnExists(
@@ -1102,24 +1138,24 @@ async function init() {
     );
   }
 
-  // ===================================================
-  // NORMALIZE POST STATUS
-  // ===================================================
+  
+  
+  
 
   try {
-    /*
-     * IMPORTANT:
-     *
-     * Existing posts were created before
-     * the approval system existed.
-     *
-     * We mark existing posts as APPROVED
-     * so your current public website
-     * does not suddenly hide all old posts.
-     *
-     * New employee posts must be inserted
-     * with status = 'pending'.
-     */
+    
+
+
+
+
+
+
+
+
+
+
+
+
 
     await pool.query(`
       UPDATE posts
@@ -1138,17 +1174,17 @@ async function init() {
     "[database] Post approval fields ready."
   );
 
-  // ===================================================
-  // DEFAULT USERS
-  // ===================================================
+  
+  
+  
 
   await ensureDefaultAdmin();
 
   await ensureDefaultChiefEditor();
 
-  // ===================================================
-  // COMPLETE
-  // ===================================================
+  
+  
+  
 
   console.log(
     "[database] Database initialization completed successfully."
@@ -1157,9 +1193,9 @@ async function init() {
   return pool;
 }
 
-// =====================================================
-// GET POOL
-// =====================================================
+
+
+
 
 function getPool() {
   if (!pool) {
@@ -1171,9 +1207,9 @@ function getPool() {
   return pool;
 }
 
-// =====================================================
-// EXPORTS
-// =====================================================
+
+
+
 
 module.exports = {
   init,

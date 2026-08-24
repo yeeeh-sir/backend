@@ -15,9 +15,9 @@ const {
 const app = express();
 const port = Number(process.env.PORT) || 5000;
 
-// =====================================================
-// BASIC CONFIGURATION
-// =====================================================
+
+
+
 
 app.use(cors());
 
@@ -29,9 +29,9 @@ app.use(
   })
 );
 
-// =====================================================
-// REQUEST LOGGER
-// =====================================================
+
+
+
 
 app.use((req, res, next) => {
   console.log(
@@ -41,9 +41,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// =====================================================
-// UPLOADS
-// =====================================================
+
+
+
 
 const uploadsDir = path.join(
   __dirname,
@@ -57,7 +57,7 @@ if (!fs.existsSync(uploadsDir)) {
 
   console.log(
     'Created uploads directory: ' +
-      uploadsDir
+    uploadsDir
   );
 }
 
@@ -66,9 +66,9 @@ app.use(
   express.static(uploadsDir)
 );
 
-// =====================================================
-// MULTER
-// =====================================================
+
+
+
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -141,9 +141,9 @@ const upload = multer({
   }
 });
 
-// =====================================================
-// TOKEN
-// =====================================================
+
+
+
 
 function generateToken() {
   return crypto
@@ -151,9 +151,9 @@ function generateToken() {
     .toString('hex');
 }
 
-// =====================================================
-// AUTHENTICATION
-// =====================================================
+
+
+
 
 async function requireAuth(
   req,
@@ -180,51 +180,51 @@ async function requireAuth(
 
     let rows = [];
 
-    // -------------------------------------------------
-    // ADMIN
-    // -------------------------------------------------
+    
+    
+    
 
     [rows] = await pool.query(
       `
-      SELECT *,
-             'admin' AS role_type
-      FROM admins
-      WHERE authToken = ?
-      LIMIT 1
-      `,
+        SELECT *,
+              'admin' AS role_type
+        FROM admins
+        WHERE authToken = ?
+        LIMIT 1
+        `,
       [token]
     );
 
-    // -------------------------------------------------
-    // CHIEF EDITOR
-    // -------------------------------------------------
+    
+    
+    
 
     if (!rows.length) {
       [rows] = await pool.query(
         `
-        SELECT *,
-               'chief_editor' AS role_type
-        FROM chief_editors
-        WHERE authToken = ?
-        LIMIT 1
-        `,
+          SELECT *,
+                'chief_editor' AS role_type
+          FROM chief_editors
+          WHERE authToken = ?
+          LIMIT 1
+          `,
         [token]
       );
     }
 
-    // -------------------------------------------------
-    // EMPLOYEE / REPORTER
-    // -------------------------------------------------
+    
+    
+    
 
     if (!rows.length) {
       [rows] = await pool.query(
         `
-        SELECT *,
-               'employee' AS role_type
-        FROM employees
-        WHERE authToken = ?
-        LIMIT 1
-        `,
+          SELECT *,
+                'employee' AS role_type
+          FROM employees
+          WHERE authToken = ?
+          LIMIT 1
+          `,
         [token]
       );
     }
@@ -236,9 +236,9 @@ async function requireAuth(
       });
     }
 
-    // -------------------------------------------------
-    // ACCOUNT STATUS
-    // -------------------------------------------------
+    
+    
+    
 
     if (
       rows[0].status &&
@@ -266,9 +266,9 @@ async function requireAuth(
   }
 }
 
-// =====================================================
-// ADMIN ONLY
-// =====================================================
+
+
+
 
 function requireAdmin(
   req,
@@ -288,9 +288,9 @@ function requireAdmin(
   next();
 }
 
-// =====================================================
-// CHIEF EDITOR ONLY
-// =====================================================
+
+
+
 
 function requireChiefEditor(
   req,
@@ -310,9 +310,9 @@ function requireChiefEditor(
   next();
 }
 
-// =====================================================
-// ADMIN + CHIEF EDITOR
-// =====================================================
+
+
+
 
 function requirePostManagement(
   req,
@@ -332,9 +332,9 @@ function requirePostManagement(
   next();
 }
 
-// =====================================================
-// PUBLIC POSTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/posts',
@@ -343,11 +343,11 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE status = 'approved'
-          ORDER BY id DESC
-          `
+            SELECT *
+            FROM posts
+            WHERE status = 'approved'
+            ORDER BY id DESC
+            `
         );
 
       res.json(rows);
@@ -365,9 +365,9 @@ app.get(
   }
 );
 
-// =====================================================
-// PUBLIC SINGLE POST
-// =====================================================
+
+
+
 
 app.get(
   '/api/posts/:id',
@@ -376,11 +376,11 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          AND status = 'approved'
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            AND status = 'approved'
+            `,
           [req.params.id]
         );
 
@@ -406,24 +406,24 @@ app.get(
   }
 );
 
-// =====================================================
-// ADMIN + CHIEF EDITOR DASHBOARD
-// =====================================================
-//
-// THIS IS THE ROUTE THAT WAS MISSING.
-//
-// GET:
-// /api/chief-editor/dashboard
-//
-// Returns:
-// - totalPosts
-// - pendingReview
-// - approved
-// - rejected
-// - pendingPosts
-//
-// Both Admin and Chief Editor are allowed.
-//
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 app.get(
   '/api/chief-editor/dashboard',
@@ -433,66 +433,66 @@ app.get(
     try {
       const pool = getPool();
 
-      // -------------------------------------------------
-      // TOTAL POSTS
-      // -------------------------------------------------
+      
+      
+      
 
       const [[totalResult]] =
         await pool.query(`
-          SELECT COUNT(*) AS total
-          FROM posts
-        `);
+            SELECT COUNT(*) AS total
+            FROM posts
+          `);
 
-      // -------------------------------------------------
-      // PENDING POSTS
-      // -------------------------------------------------
+      
+      
+      
 
       const [[pendingResult]] =
         await pool.query(`
-          SELECT COUNT(*) AS total
-          FROM posts
-          WHERE status = 'pending'
-        `);
+            SELECT COUNT(*) AS total
+            FROM posts
+            WHERE status = 'pending'
+          `);
 
-      // -------------------------------------------------
-      // APPROVED POSTS
-      // -------------------------------------------------
+      
+      
+      
 
       const [[approvedResult]] =
         await pool.query(`
-          SELECT COUNT(*) AS total
-          FROM posts
-          WHERE status = 'approved'
-        `);
+            SELECT COUNT(*) AS total
+            FROM posts
+            WHERE status = 'approved'
+          `);
 
-      // -------------------------------------------------
-      // REJECTED POSTS
-      // -------------------------------------------------
+      
+      
+      
 
       const [[rejectedResult]] =
         await pool.query(`
-          SELECT COUNT(*) AS total
-          FROM posts
-          WHERE status = 'rejected'
-        `);
+            SELECT COUNT(*) AS total
+            FROM posts
+            WHERE status = 'rejected'
+          `);
 
-      // -------------------------------------------------
-      // POSTS WAITING FOR REVIEW
-      // -------------------------------------------------
+      
+      
+      
 
       const [pendingPosts] =
         await pool.query(`
-          SELECT
-            p.*,
-            p.Author AS author_name
-          FROM posts p
-          WHERE p.status = 'pending'
-          ORDER BY p.id DESC
-        `);
+            SELECT
+              p.*,
+              p.Author AS author_name
+            FROM posts p
+            WHERE p.status = 'pending'
+            ORDER BY p.id DESC
+          `);
 
-      // -------------------------------------------------
-      // RESPONSE
-      // -------------------------------------------------
+      
+      
+      
 
       res.json({
         totalPosts:
@@ -524,9 +524,9 @@ app.get(
   }
 );
 
-// =====================================================
-// ADMIN + CHIEF EDITOR - ALL POSTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/admin/posts',
@@ -537,22 +537,22 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT
-            p.*,
-            p.Author AS author_name
-          FROM posts p
-          ORDER BY
-            CASE
-              WHEN p.status = 'pending'
-                THEN 1
-              WHEN p.status = 'approved'
-                THEN 2
-              WHEN p.status = 'rejected'
-                THEN 3
-              ELSE 4
-            END,
-            p.id DESC
-          `
+            SELECT
+              p.*,
+              p.Author AS author_name
+            FROM posts p
+            ORDER BY
+              CASE
+                WHEN p.status = 'pending'
+                  THEN 1
+                WHEN p.status = 'approved'
+                  THEN 2
+                WHEN p.status = 'rejected'
+                  THEN 3
+                ELSE 4
+              END,
+              p.id DESC
+            `
         );
 
       res.json(rows);
@@ -570,9 +570,9 @@ app.get(
   }
 );
 
-// =====================================================
-// ADMIN + CHIEF EDITOR - PENDING POSTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/admin/posts/pending',
@@ -583,13 +583,13 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT
-            p.*,
-            p.Author AS author_name
-          FROM posts p
-          WHERE p.status = 'pending'
-          ORDER BY p.id DESC
-          `
+            SELECT
+              p.*,
+              p.Author AS author_name
+            FROM posts p
+            WHERE p.status = 'pending'
+            ORDER BY p.id DESC
+            `
         );
 
       res.json(rows);
@@ -607,9 +607,9 @@ app.get(
   }
 );
 
-// =====================================================
-// CHIEF EDITOR - ALL POSTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/chief-editor/posts',
@@ -620,22 +620,22 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT
-            p.*,
-            p.Author AS author_name
-          FROM posts p
-          ORDER BY
-            CASE
-              WHEN p.status = 'pending'
-                THEN 1
-              WHEN p.status = 'approved'
-                THEN 2
-              WHEN p.status = 'rejected'
-                THEN 3
-              ELSE 4
-            END,
-            p.id DESC
-          `
+            SELECT
+              p.*,
+              p.Author AS author_name
+            FROM posts p
+            ORDER BY
+              CASE
+                WHEN p.status = 'pending'
+                  THEN 1
+                WHEN p.status = 'approved'
+                  THEN 2
+                WHEN p.status = 'rejected'
+                  THEN 3
+                ELSE 4
+              END,
+              p.id DESC
+            `
         );
 
       res.json(rows);
@@ -653,9 +653,9 @@ app.get(
   }
 );
 
-// =====================================================
-// CHIEF EDITOR - PENDING POSTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/chief-editor/posts/pending',
@@ -666,13 +666,13 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT
-            p.*,
-            p.Author AS author_name
-          FROM posts p
-          WHERE p.status = 'pending'
-          ORDER BY p.id DESC
-          `
+            SELECT
+              p.*,
+              p.Author AS author_name
+            FROM posts p
+            WHERE p.status = 'pending'
+            ORDER BY p.id DESC
+            `
         );
 
       res.json(rows);
@@ -690,9 +690,9 @@ app.get(
   }
 );
 
-// =====================================================
-// APPROVE POST
-// =====================================================
+
+
+
 
 app.put(
   '/api/chief-editor/posts/:id/approve',
@@ -708,11 +708,11 @@ app.put(
       const [existingRows] =
         await pool.query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          LIMIT 1
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            LIMIT 1
+            `,
           [id]
         );
 
@@ -741,21 +741,21 @@ app.put(
         req.user.email ||
         (
           req.user.role_type ===
-          'admin'
+            'admin'
             ? 'Admin'
             : 'Chief Editor'
         );
 
       await pool.execute(
         `
-        UPDATE posts
-        SET
-          status = 'approved',
-          rejection_reason = NULL,
-          approved_by = ?,
-          approved_at = NOW()
-        WHERE id = ?
-        `,
+          UPDATE posts
+          SET
+            status = 'approved',
+            rejection_reason = NULL,
+            approved_by = ?,
+            approved_at = NOW()
+          WHERE id = ?
+          `,
         [
           approverName,
           id
@@ -765,10 +765,10 @@ app.put(
       const [rows] =
         await pool.query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -794,9 +794,9 @@ app.put(
   }
 );
 
-// =====================================================
-// REJECT POST
-// =====================================================
+
+
+
 
 app.put(
   '/api/chief-editor/posts/:id/reject',
@@ -815,11 +815,11 @@ app.put(
       const [existingRows] =
         await pool.query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          LIMIT 1
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            LIMIT 1
+            `,
           [id]
         );
 
@@ -832,25 +832,24 @@ app.put(
 
       const rejectionReason =
         reason &&
-        String(reason).trim()
+          String(reason).trim()
           ? String(reason).trim()
-          : `Post rejected by ${
-              req.user.role_type ===
-              'admin'
-                ? 'Admin'
-                : 'Chief Editor'
-            }.`;
+          : `Post rejected by ${req.user.role_type ===
+            'admin'
+            ? 'Admin'
+            : 'Chief Editor'
+          }.`;
 
       await pool.execute(
         `
-        UPDATE posts
-        SET
-          status = 'rejected',
-          rejection_reason = ?,
-          approved_by = NULL,
-          approved_at = NULL
-        WHERE id = ?
-        `,
+          UPDATE posts
+          SET
+            status = 'rejected',
+            rejection_reason = ?,
+            approved_by = NULL,
+            approved_at = NULL
+          WHERE id = ?
+          `,
         [
           rejectionReason,
           id
@@ -860,10 +859,10 @@ app.put(
       const [rows] =
         await pool.query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -889,9 +888,9 @@ app.put(
   }
 );
 
-// =====================================================
-// RETURN REJECTED POST TO PENDING
-// =====================================================
+
+
+
 
 app.put(
   '/api/chief-editor/posts/:id/review',
@@ -905,11 +904,11 @@ app.put(
       const [existingRows] =
         await getPool().query(
           `
-          SELECT id
-          FROM posts
-          WHERE id = ?
-          LIMIT 1
-          `,
+            SELECT id
+            FROM posts
+            WHERE id = ?
+            LIMIT 1
+            `,
           [id]
         );
 
@@ -922,24 +921,24 @@ app.put(
 
       await getPool().execute(
         `
-        UPDATE posts
-        SET
-          status = 'pending',
-          rejection_reason = NULL,
-          approved_by = NULL,
-          approved_at = NULL
-        WHERE id = ?
-        `,
+          UPDATE posts
+          SET
+            status = 'pending',
+            rejection_reason = NULL,
+            approved_by = NULL,
+            approved_at = NULL
+          WHERE id = ?
+          `,
         [id]
       );
 
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -964,9 +963,9 @@ app.put(
   }
 );
 
-// =====================================================
-// CREATE POST
-// =====================================================
+
+
+
 
 app.post(
   '/api/posts',
@@ -996,26 +995,26 @@ app.post(
       const imageUrl =
         req.file
           ? `${req.protocol}://${req.get(
-              'host'
-            )}/uploads/${req.file.filename}`
+            'host'
+          )}/uploads/${req.file.filename}`
           : null;
 
       const authorName =
         author &&
-        String(author).trim()
+          String(author).trim()
           ? String(author).trim()
           : req.user.full_name ||
-            req.user.email ||
-            'Admin';
+          req.user.email ||
+          'Admin';
 
       let postStatus =
         'pending';
 
       if (
         req.user.role_type ===
-          'admin' ||
+        'admin' ||
         req.user.role_type ===
-          'chief_editor'
+        'chief_editor'
       ) {
         postStatus =
           'approved';
@@ -1024,8 +1023,8 @@ app.post(
       const approvedBy =
         postStatus === 'approved'
           ? req.user.full_name ||
-            req.user.email ||
-            null
+          req.user.email ||
+          null
           : null;
 
       const approvedAt =
@@ -1036,22 +1035,22 @@ app.post(
       const [result] =
         await getPool().execute(
           `
-          INSERT INTO posts
-          (
-            title,
-            category,
-            description,
-            image,
-            createdDate,
-            youtube_url,
-            Author,
-            status,
-            rejection_reason,
-            approved_by,
-            approved_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
-          `,
+            INSERT INTO posts
+            (
+              title,
+              category,
+              description,
+              image,
+              createdDate,
+              youtube_url,
+              Author,
+              status,
+              rejection_reason,
+              approved_by,
+              approved_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            `,
           [
             String(title).trim(),
             String(category).trim(),
@@ -1069,10 +1068,10 @@ app.post(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            `,
           [result.insertId]
         );
 
@@ -1100,9 +1099,9 @@ app.post(
   }
 );
 
-// =====================================================
-// UPDATE POST
-// =====================================================
+
+
+
 
 app.put(
   '/api/posts/:id',
@@ -1124,10 +1123,10 @@ app.put(
       const [existingRows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -1141,9 +1140,9 @@ app.put(
       const existing =
         existingRows[0];
 
-      // -------------------------------------------------
-      // EMPLOYEE OWNERSHIP CHECK
-      // -------------------------------------------------
+      
+      
+      
 
       if (
         req.user.role_type ===
@@ -1164,39 +1163,39 @@ app.put(
         }
       }
 
-      // -------------------------------------------------
-      // IMAGE
-      // -------------------------------------------------
+      
+      
+      
 
       const imageUrl =
         req.file
           ? `${req.protocol}://${req.get(
-              'host'
-            )}/uploads/${req.file.filename}`
+            'host'
+          )}/uploads/${req.file.filename}`
           : existing.image;
 
-      // -------------------------------------------------
-      // YOUTUBE
-      // -------------------------------------------------
+      
+      
+      
 
       const updatedYoutubeUrl =
         youtube_url !== undefined
           ? youtube_url || null
           : existing.youtube_url;
 
-      // -------------------------------------------------
-      // AUTHOR
-      // -------------------------------------------------
+      
+      
+      
 
       const updatedAuthor =
         author !== undefined &&
-        String(author).trim()
+          String(author).trim()
           ? String(author).trim()
           : existing.Author;
 
-      // -------------------------------------------------
-      // STATUS
-      // -------------------------------------------------
+      
+      
+      
 
       let updatedStatus =
         existing.status;
@@ -1210,7 +1209,7 @@ app.put(
       let rejectionReason =
         existing.rejection_reason;
 
-      // Employee edits always require review again.
+      
 
       if (
         req.user.role_type ===
@@ -1226,14 +1225,14 @@ app.put(
         rejectionReason = null;
       }
 
-      // Admin or Chief Editor edits remain approved
-      // when the existing post is approved.
+      
+      
 
       if (
         req.user.role_type ===
-          'admin' ||
+        'admin' ||
         req.user.role_type ===
-          'chief_editor'
+        'chief_editor'
       ) {
         if (
           existing.status ===
@@ -1257,28 +1256,28 @@ app.put(
 
       await getPool().execute(
         `
-        UPDATE posts
-        SET
-          title = ?,
-          category = ?,
-          description = ?,
-          image = ?,
-          youtube_url = ?,
-          Author = ?,
-          status = ?,
-          rejection_reason = ?,
-          approved_by = ?,
-          approved_at = ?
-        WHERE id = ?
-        `,
+          UPDATE posts
+          SET
+            title = ?,
+            category = ?,
+            description = ?,
+            image = ?,
+            youtube_url = ?,
+            Author = ?,
+            status = ?,
+            rejection_reason = ?,
+            approved_by = ?,
+            approved_at = ?
+          WHERE id = ?
+          `,
         [
           title !== undefined &&
-          String(title).trim()
+            String(title).trim()
             ? String(title).trim()
             : existing.title,
 
           category !== undefined &&
-          String(category).trim()
+            String(category).trim()
             ? String(category).trim()
             : existing.category,
 
@@ -1307,17 +1306,17 @@ app.put(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM posts
+            WHERE id = ?
+            `,
           [id]
         );
 
       res.json({
         message:
           req.user.role_type ===
-          'employee'
+            'employee'
             ? 'Post updated and sent back for Admin or Chief Editor approval.'
             : 'Post updated successfully.',
         post:
@@ -1339,9 +1338,9 @@ app.put(
   }
 );
 
-// =====================================================
-// DELETE POST
-// =====================================================
+
+
+
 
 app.delete(
   '/api/posts/:id',
@@ -1355,10 +1354,10 @@ app.delete(
       const [existing] =
         await getPool().query(
           `
-          SELECT id
-          FROM posts
-          WHERE id = ?
-          `,
+            SELECT id
+            FROM posts
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -1371,9 +1370,9 @@ app.delete(
 
       await getPool().execute(
         `
-        DELETE FROM posts
-        WHERE id = ?
-        `,
+          DELETE FROM posts
+          WHERE id = ?
+          `,
         [id]
       );
 
@@ -1396,9 +1395,9 @@ app.delete(
   }
 );
 
-// =====================================================
-// EMPLOYEE - MY POSTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/my-posts',
@@ -1422,11 +1421,11 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM posts
-          WHERE Author = ?
-          ORDER BY id DESC
-          `,
+            SELECT *
+            FROM posts
+            WHERE Author = ?
+            ORDER BY id DESC
+            `,
           [authorName]
         );
 
@@ -1446,9 +1445,9 @@ app.get(
   }
 );
 
-// =====================================================
-// COMMENTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/comments/:postId',
@@ -1457,11 +1456,11 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM comments
-          WHERE post_id = ?
-          ORDER BY created_at ASC
-          `,
+            SELECT *
+            FROM comments
+            WHERE post_id = ?
+            ORDER BY created_at ASC
+            `,
           [req.params.postId]
         );
 
@@ -1506,17 +1505,17 @@ app.post(
       const [result] =
         await getPool().execute(
           `
-          INSERT INTO comments
-          (
-            post_id,
-            name,
-            comment,
-            parent_id,
-            likes,
-            dislikes
-          )
-          VALUES (?, ?, ?, ?, 0, 0)
-          `,
+            INSERT INTO comments
+            (
+              post_id,
+              name,
+              comment,
+              parent_id,
+              likes,
+              dislikes
+            )
+            VALUES (?, ?, ?, ?, 0, 0)
+            `,
           [
             post_id,
             String(name).trim(),
@@ -1528,10 +1527,10 @@ app.post(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM comments
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM comments
+            WHERE id = ?
+            `,
           [result.insertId]
         );
 
@@ -1554,9 +1553,9 @@ app.post(
   }
 );
 
-// =====================================================
-// DELETE COMMENT
-// =====================================================
+
+
+
 
 app.delete(
   '/api/comments/:id',
@@ -1570,10 +1569,10 @@ app.delete(
       const [existing] =
         await getPool().query(
           `
-          SELECT id
-          FROM comments
-          WHERE id = ?
-          `,
+            SELECT id
+            FROM comments
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -1586,9 +1585,9 @@ app.delete(
 
       await getPool().execute(
         `
-        DELETE FROM comments
-        WHERE id = ?
-        `,
+          DELETE FROM comments
+          WHERE id = ?
+          `,
         [id]
       );
 
@@ -1611,9 +1610,9 @@ app.delete(
   }
 );
 
-// =====================================================
-// ADVERTISEMENTS
-// =====================================================
+
+
+
 
 app.get(
   '/api/advertisements',
@@ -1622,10 +1621,10 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM advertisements
-          ORDER BY id DESC
-          `
+            SELECT *
+            FROM advertisements
+            ORDER BY id DESC
+            `
         );
 
       res.json(rows);
@@ -1644,9 +1643,9 @@ app.get(
   }
 );
 
-// =====================================================
-// CREATE ADVERTISEMENT
-// =====================================================
+
+
+
 
 app.post(
   '/api/advertisements',
@@ -1679,8 +1678,8 @@ app.post(
       const imageUrl =
         req.file
           ? `${req.protocol}://${req.get(
-              'host'
-            )}/uploads/${req.file.filename}`
+            'host'
+          )}/uploads/${req.file.filename}`
           : null;
 
       const finalLink =
@@ -1699,20 +1698,20 @@ app.post(
       const [result] =
         await getPool().execute(
           `
-          INSERT INTO advertisements
-          (
-            title,
-            image,
-            link,
-            position,
-            start_date,
-            end_date,
-            status,
-            description,
-            target_url
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
+            INSERT INTO advertisements
+            (
+              title,
+              image,
+              link,
+              position,
+              start_date,
+              end_date,
+              status,
+              description,
+              target_url
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
           [
             String(title).trim(),
             imageUrl,
@@ -1729,10 +1728,10 @@ app.post(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM advertisements
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM advertisements
+            WHERE id = ?
+            `,
           [result.insertId]
         );
 
@@ -1755,9 +1754,9 @@ app.post(
   }
 );
 
-// =====================================================
-// UPDATE ADVERTISEMENT
-// =====================================================
+
+
+
 
 app.put(
   '/api/advertisements/:id',
@@ -1783,10 +1782,10 @@ app.put(
       const [existingRows] =
         await getPool().query(
           `
-          SELECT *
-          FROM advertisements
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM advertisements
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -1803,8 +1802,8 @@ app.put(
       const imageUrl =
         req.file
           ? `${req.protocol}://${req.get(
-              'host'
-            )}/uploads/${req.file.filename}`
+            'host'
+          )}/uploads/${req.file.filename}`
           : existing.image;
 
       let finalLink =
@@ -1827,16 +1826,16 @@ app.put(
       const finalPosition =
         position !== undefined
           ? position ||
-            'sidebar'
+          'sidebar'
           : existing.position ||
-            'sidebar';
+          'sidebar';
 
       const finalStatus =
         status !== undefined
           ? status ||
-            'active'
+          'active'
           : existing.status ||
-            'active';
+          'active';
 
       const finalStartDate =
         start_date !== undefined
@@ -1855,25 +1854,25 @@ app.put(
 
       const finalTitle =
         title !== undefined &&
-        String(title).trim()
+          String(title).trim()
           ? String(title).trim()
           : existing.title;
 
       await getPool().execute(
         `
-        UPDATE advertisements
-        SET
-          title = ?,
-          image = ?,
-          link = ?,
-          position = ?,
-          start_date = ?,
-          end_date = ?,
-          status = ?,
-          description = ?,
-          target_url = ?
-        WHERE id = ?
-        `,
+          UPDATE advertisements
+          SET
+            title = ?,
+            image = ?,
+            link = ?,
+            position = ?,
+            start_date = ?,
+            end_date = ?,
+            status = ?,
+            description = ?,
+            target_url = ?
+          WHERE id = ?
+          `,
         [
           finalTitle,
           imageUrl,
@@ -1891,10 +1890,10 @@ app.put(
       const [rows] =
         await getPool().query(
           `
-          SELECT *
-          FROM advertisements
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM advertisements
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -1915,9 +1914,9 @@ app.put(
   }
 );
 
-// =====================================================
-// DELETE ADVERTISEMENT
-// =====================================================
+
+
+
 
 app.delete(
   '/api/advertisements/:id',
@@ -1931,10 +1930,10 @@ app.delete(
       const [existing] =
         await getPool().query(
           `
-          SELECT id
-          FROM advertisements
-          WHERE id = ?
-          `,
+            SELECT id
+            FROM advertisements
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -1947,9 +1946,9 @@ app.delete(
 
       await getPool().execute(
         `
-        DELETE FROM advertisements
-        WHERE id = ?
-        `,
+          DELETE FROM advertisements
+          WHERE id = ?
+          `,
         [id]
       );
 
@@ -1972,11 +1971,11 @@ app.delete(
   }
 );
 
-// =====================================================
-// EMPLOYEES
-// =====================================================
 
-// GET EMPLOYEES
+
+
+
+
 
 app.get(
   '/api/employees',
@@ -1987,17 +1986,17 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            created_at,
-            status
-          FROM employees
-          ORDER BY id DESC
-          `
+            SELECT
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              created_at,
+              status
+            FROM employees
+            ORDER BY id DESC
+            `
         );
 
       res.json(rows);
@@ -2016,7 +2015,7 @@ app.get(
   }
 );
 
-// CREATE EMPLOYEE
+
 
 app.post(
   '/api/employees',
@@ -2106,11 +2105,11 @@ app.post(
       const [existing] =
         await pool.query(
           `
-          SELECT id
-          FROM employees
-          WHERE email = ?
-          LIMIT 1
-          `,
+            SELECT id
+            FROM employees
+            WHERE email = ?
+            LIMIT 1
+            `,
           [cleanEmail]
         );
 
@@ -2129,18 +2128,18 @@ app.post(
       const [result] =
         await pool.execute(
           `
-          INSERT INTO employees
-          (
-            full_name,
-            email,
-            phone,
-            password,
-            role,
-            status,
-            authToken
-          )
-          VALUES (?, ?, ?, ?, ?, ?, NULL)
-          `,
+            INSERT INTO employees
+            (
+              full_name,
+              email,
+              phone,
+              password,
+              role,
+              status,
+              authToken
+            )
+            VALUES (?, ?, ?, ?, ?, ?, NULL)
+            `,
           [
             cleanName,
             cleanEmail,
@@ -2154,17 +2153,17 @@ app.post(
       const [rows] =
         await pool.query(
           `
-          SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            created_at,
-            status
-          FROM employees
-          WHERE id = ?
-          `,
+            SELECT
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              created_at,
+              status
+            FROM employees
+            WHERE id = ?
+            `,
           [result.insertId]
         );
 
@@ -2190,7 +2189,7 @@ app.post(
   }
 );
 
-// UPDATE EMPLOYEE
+
 
 app.put(
   '/api/employees/:id',
@@ -2216,10 +2215,10 @@ app.put(
       const [existingRows] =
         await pool.query(
           `
-          SELECT *
-          FROM employees
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM employees
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -2248,16 +2247,16 @@ app.put(
 
       const updatedName =
         full_name !== undefined &&
-        String(full_name).trim()
+          String(full_name).trim()
           ? String(full_name).trim()
           : existing.full_name;
 
       const updatedEmail =
         email !== undefined &&
-        String(email).trim()
+          String(email).trim()
           ? String(email)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.email;
 
       const updatedPhone =
@@ -2269,12 +2268,12 @@ app.put(
 
       const updatedRole =
         role !== undefined &&
-        String(role).trim()
+          String(role).trim()
           ? String(role)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.role ||
-            'reporter';
+          'reporter';
 
       if (
         updatedRole !==
@@ -2288,22 +2287,22 @@ app.put(
 
       const updatedStatus =
         status !== undefined &&
-        String(status).trim()
+          String(status).trim()
           ? String(status)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.status ||
-            'active';
+          'active';
 
       const [duplicateEmail] =
         await pool.query(
           `
-          SELECT id
-          FROM employees
-          WHERE email = ?
-          AND id <> ?
-          LIMIT 1
-          `,
+            SELECT id
+            FROM employees
+            WHERE email = ?
+            AND id <> ?
+            LIMIT 1
+            `,
           [
             updatedEmail,
             id
@@ -2321,16 +2320,16 @@ app.put(
 
       await pool.execute(
         `
-        UPDATE employees
-        SET
-          full_name = ?,
-          email = ?,
-          phone = ?,
-          password = ?,
-          role = ?,
-          status = ?
-        WHERE id = ?
-        `,
+          UPDATE employees
+          SET
+            full_name = ?,
+            email = ?,
+            phone = ?,
+            password = ?,
+            role = ?,
+            status = ?
+          WHERE id = ?
+          `,
         [
           updatedName,
           updatedEmail,
@@ -2345,17 +2344,17 @@ app.put(
       const [updatedRows] =
         await pool.query(
           `
-          SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            created_at,
-            status
-          FROM employees
-          WHERE id = ?
-          `,
+            SELECT
+              id,
+              full_name,
+              email,
+              phone,
+              role,
+              created_at,
+              status
+            FROM employees
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -2381,7 +2380,7 @@ app.put(
   }
 );
 
-// DELETE EMPLOYEE
+
 
 app.delete(
   '/api/employees/:id',
@@ -2398,10 +2397,10 @@ app.delete(
       const [existing] =
         await pool.query(
           `
-          SELECT id
-          FROM employees
-          WHERE id = ?
-          `,
+            SELECT id
+            FROM employees
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -2414,9 +2413,9 @@ app.delete(
 
       await pool.execute(
         `
-        DELETE FROM employees
-        WHERE id = ?
-        `,
+          DELETE FROM employees
+          WHERE id = ?
+          `,
         [id]
       );
 
@@ -2439,11 +2438,11 @@ app.delete(
   }
 );
 
-// =====================================================
-// CHIEF EDITORS
-// =====================================================
 
-// GET CHIEF EDITORS
+
+
+
+
 
 app.get(
   '/api/chief-editors',
@@ -2454,16 +2453,16 @@ app.get(
       const [rows] =
         await getPool().query(
           `
-          SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            status,
-            created_at
-          FROM chief_editors
-          ORDER BY id DESC
-          `
+            SELECT
+              id,
+              full_name,
+              email,
+              phone,
+              status,
+              created_at
+            FROM chief_editors
+            ORDER BY id DESC
+            `
         );
 
       res.json(rows);
@@ -2482,7 +2481,7 @@ app.get(
   }
 );
 
-// CREATE CHIEF EDITOR
+
 
 app.post(
   '/api/chief-editors',
@@ -2554,11 +2553,11 @@ app.post(
       const [existing] =
         await pool.query(
           `
-          SELECT id
-          FROM chief_editors
-          WHERE email = ?
-          LIMIT 1
-          `,
+            SELECT id
+            FROM chief_editors
+            WHERE email = ?
+            LIMIT 1
+            `,
           [cleanEmail]
         );
 
@@ -2577,17 +2576,17 @@ app.post(
       const [result] =
         await pool.execute(
           `
-          INSERT INTO chief_editors
-          (
-            full_name,
-            email,
-            phone,
-            password,
-            status,
-            authToken
-          )
-          VALUES (?, ?, ?, ?, ?, NULL)
-          `,
+            INSERT INTO chief_editors
+            (
+              full_name,
+              email,
+              phone,
+              password,
+              status,
+              authToken
+            )
+            VALUES (?, ?, ?, ?, ?, NULL)
+            `,
           [
             cleanName,
             cleanEmail,
@@ -2600,16 +2599,16 @@ app.post(
       const [rows] =
         await pool.query(
           `
-          SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            status,
-            created_at
-          FROM chief_editors
-          WHERE id = ?
-          `,
+            SELECT
+              id,
+              full_name,
+              email,
+              phone,
+              status,
+              created_at
+            FROM chief_editors
+            WHERE id = ?
+            `,
           [result.insertId]
         );
 
@@ -2635,7 +2634,7 @@ app.post(
   }
 );
 
-// UPDATE CHIEF EDITOR
+
 
 app.put(
   '/api/chief-editors/:id',
@@ -2660,10 +2659,10 @@ app.put(
       const [existingRows] =
         await pool.query(
           `
-          SELECT *
-          FROM chief_editors
-          WHERE id = ?
-          `,
+            SELECT *
+            FROM chief_editors
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -2692,16 +2691,16 @@ app.put(
 
       const updatedName =
         full_name !== undefined &&
-        String(full_name).trim()
+          String(full_name).trim()
           ? String(full_name).trim()
           : existing.full_name;
 
       const updatedEmail =
         email !== undefined &&
-        String(email).trim()
+          String(email).trim()
           ? String(email)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.email;
 
       const updatedPhone =
@@ -2713,22 +2712,22 @@ app.put(
 
       const updatedStatus =
         status !== undefined &&
-        String(status).trim()
+          String(status).trim()
           ? String(status)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.status ||
-            'active';
+          'active';
 
       const [duplicate] =
         await pool.query(
           `
-          SELECT id
-          FROM chief_editors
-          WHERE email = ?
-          AND id <> ?
-          LIMIT 1
-          `,
+            SELECT id
+            FROM chief_editors
+            WHERE email = ?
+            AND id <> ?
+            LIMIT 1
+            `,
           [
             updatedEmail,
             id
@@ -2744,15 +2743,15 @@ app.put(
 
       await pool.execute(
         `
-        UPDATE chief_editors
-        SET
-          full_name = ?,
-          email = ?,
-          phone = ?,
-          status = ?,
-          password = ?
-        WHERE id = ?
-        `,
+          UPDATE chief_editors
+          SET
+            full_name = ?,
+            email = ?,
+            phone = ?,
+            status = ?,
+            password = ?
+          WHERE id = ?
+          `,
         [
           updatedName,
           updatedEmail,
@@ -2766,16 +2765,16 @@ app.put(
       const [updatedRows] =
         await pool.query(
           `
-          SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            status,
-            created_at
-          FROM chief_editors
-          WHERE id = ?
-          `,
+            SELECT
+              id,
+              full_name,
+              email,
+              phone,
+              status,
+              created_at
+            FROM chief_editors
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -2801,7 +2800,7 @@ app.put(
   }
 );
 
-// DELETE CHIEF EDITOR
+
 
 app.delete(
   '/api/chief-editors/:id',
@@ -2818,10 +2817,10 @@ app.delete(
       const [existing] =
         await pool.query(
           `
-          SELECT id
-          FROM chief_editors
-          WHERE id = ?
-          `,
+            SELECT id
+            FROM chief_editors
+            WHERE id = ?
+            `,
           [id]
         );
 
@@ -2834,9 +2833,9 @@ app.delete(
 
       await pool.execute(
         `
-        DELETE FROM chief_editors
-        WHERE id = ?
-        `,
+          DELETE FROM chief_editors
+          WHERE id = ?
+          `,
         [id]
       );
 
@@ -2859,9 +2858,9 @@ app.delete(
   }
 );
 
-// =====================================================
-// LOGIN
-// =====================================================
+
+
+
 
 app.post(
   '/api/auth/login',
@@ -2894,18 +2893,18 @@ app.post(
 
       let userTable = '';
 
-      // -------------------------------------------------
-      // ADMIN
-      // -------------------------------------------------
+      
+      
+      
 
       const [adminRows] =
         await pool.query(
           `
-          SELECT *
-          FROM admins
-          WHERE email = ?
-          LIMIT 1
-          `,
+            SELECT *
+            FROM admins
+            WHERE email = ?
+            LIMIT 1
+            `,
           [cleanEmail]
         );
 
@@ -2917,19 +2916,19 @@ app.post(
           'admins';
       }
 
-      // -------------------------------------------------
-      // CHIEF EDITOR
-      // -------------------------------------------------
+      
+      
+      
 
       if (!user) {
         const [chiefRows] =
           await pool.query(
             `
-            SELECT *
-            FROM chief_editors
-            WHERE email = ?
-            LIMIT 1
-            `,
+              SELECT *
+              FROM chief_editors
+              WHERE email = ?
+              LIMIT 1
+              `,
             [cleanEmail]
           );
 
@@ -2942,19 +2941,19 @@ app.post(
         }
       }
 
-      // -------------------------------------------------
-      // EMPLOYEE
-      // -------------------------------------------------
+      
+      
+      
 
       if (!user) {
         const [employeeRows] =
           await pool.query(
             `
-            SELECT *
-            FROM employees
-            WHERE email = ?
-            LIMIT 1
-            `,
+              SELECT *
+              FROM employees
+              WHERE email = ?
+              LIMIT 1
+              `,
             [cleanEmail]
           );
 
@@ -2979,7 +2978,7 @@ app.post(
       if (
         user.status &&
         user.status !==
-          'active'
+        'active'
       ) {
         return res.status(403).json({
           error:
@@ -2987,9 +2986,9 @@ app.post(
         });
       }
 
-      // -------------------------------------------------
-      // PASSWORD CHECK
-      // -------------------------------------------------
+      
+      
+      
 
       let validPassword =
         false;
@@ -3017,28 +3016,28 @@ app.post(
         });
       }
 
-      // -------------------------------------------------
-      // TOKEN
-      // -------------------------------------------------
+      
+      
+      
 
       const token =
         generateToken();
 
       await pool.execute(
         `
-        UPDATE ${userTable}
-        SET authToken = ?
-        WHERE id = ?
-        `,
+          UPDATE ${userTable}
+          SET authToken = ?
+          WHERE id = ?
+          `,
         [
           token,
           user.id
         ]
       );
 
-      // -------------------------------------------------
-      // ROLE
-      // -------------------------------------------------
+      
+      
+      
 
       let userRole =
         'Staff';
@@ -3118,9 +3117,9 @@ app.post(
   }
 );
 
-// =====================================================
-// CURRENT USER
-// =====================================================
+
+
+
 
 app.get(
   '/api/auth/me',
@@ -3189,9 +3188,173 @@ app.get(
   }
 );
 
-// =====================================================
-// LOGOUT
-// =====================================================
+
+
+
+
+app.put(
+  '/api/auth/change-password',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const {
+        current_password,
+        new_password
+      } = req.body;
+
+      if (
+        !current_password ||
+        !new_password
+      ) {
+        return res.status(400).json({
+          error:
+            'Current password and new password are required.'
+        });
+      }
+
+      if (String(new_password).length < 6) {
+        return res.status(400).json({
+          error:
+            'New password must be at least 6 characters.'
+        });
+      }
+
+      if (
+        !verifyPassword(
+          current_password,
+          req.user.password
+        )
+      ) {
+        return res.status(401).json({
+          error: 'Current password is incorrect.'
+        });
+      }
+
+      await getPool().execute(
+        `
+          UPDATE admins
+          SET password = ?
+          WHERE id = ?
+          `,
+        [
+          hashPassword(new_password),
+          req.user.id
+        ]
+      );
+
+      res.json({
+        message: 'Password changed successfully.'
+      });
+    } catch (error) {
+      console.error(
+        'Change admin password error:',
+        error
+      );
+
+      res.status(500).json({
+        error: 'Unable to change password.'
+      });
+    }
+  }
+);
+
+
+
+
+
+app.put(
+  '/api/auth/change-email',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const {
+        new_email,
+        current_password
+      } = req.body;
+
+      const cleanEmail = String(new_email || '')
+        .trim()
+        .toLowerCase();
+
+      if (!cleanEmail || !current_password) {
+        return res.status(400).json({
+          error:
+            'New email and current password are required.'
+        });
+      }
+
+      if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+        return res.status(400).json({
+          error: 'Please provide a valid email address.'
+        });
+      }
+
+      if (
+        !verifyPassword(
+          current_password,
+          req.user.password
+        )
+      ) {
+        return res.status(401).json({
+          error: 'Current password is incorrect.'
+        });
+      }
+
+      const [existing] = await getPool().query(
+        `
+        SELECT id
+        FROM admins
+        WHERE email = ?
+          AND id <> ?
+        LIMIT 1
+        `,
+        [cleanEmail, req.user.id]
+      );
+
+      if (existing.length) {
+        return res.status(409).json({
+          error: 'That email is already used by another admin.'
+        });
+      }
+
+      await getPool().execute(
+        `
+        UPDATE admins
+        SET email = ?
+        WHERE id = ?
+        `,
+        [cleanEmail, req.user.id]
+      );
+
+      res.json({
+        message: 'Email changed successfully.',
+        user: {
+          id: req.user.id,
+          email: cleanEmail,
+          full_name: req.user.full_name,
+          phone: req.user.phone || null,
+          role: 'admin',
+          role_type: 'admin'
+        }
+      });
+    } catch (error) {
+      console.error(
+        'Change admin email error:',
+        error
+      );
+
+      res.status(500).json({
+        error: 'Unable to change email.'
+      });
+    }
+  }
+);
+
+
+
+
 
 app.post(
   '/api/auth/logout',
@@ -3221,10 +3384,10 @@ app.post(
 
       await pool.execute(
         `
-        UPDATE ${table}
-        SET authToken = NULL
-        WHERE id = ?
-        `,
+          UPDATE ${table}
+          SET authToken = NULL
+          WHERE id = ?
+          `,
         [req.user.id]
       );
 
@@ -3247,9 +3410,9 @@ app.post(
   }
 );
 
-// =====================================================
-// HEALTH CHECK
-// =====================================================
+
+
+
 
 app.get(
   '/api/health',
@@ -3266,9 +3429,9 @@ app.get(
   }
 );
 
-// =====================================================
-// 404
-// =====================================================
+
+
+
 
 app.use(
   (req, res) => {
@@ -3283,9 +3446,9 @@ app.use(
   }
 );
 
-// =====================================================
-// GLOBAL ERROR HANDLER
-// =====================================================
+
+
+
 
 app.use(
   (
@@ -3330,9 +3493,9 @@ app.use(
   }
 );
 
-// =====================================================
-// START SERVER
-// =====================================================
+
+
+
 
 async function startServer() {
   try {
@@ -3344,7 +3507,7 @@ async function startServer() {
         () => {
           console.log(
             'Backend server is running on http://localhost:' +
-              port
+            port
           );
         }
       );
@@ -3358,9 +3521,9 @@ async function startServer() {
         ) {
           console.error(
             `\n[FATAL] Port ${port} is already in use.\n` +
-              `Find and stop it with:\n` +
-              `  netstat -ano | findstr :${port}\n` +
-              `  taskkill /PID <PID> /F\n`
+            `Find and stop it with:\n` +
+            `  netstat -ano | findstr :${port}\n` +
+            `  taskkill /PID <PID> /F\n`
           );
 
           process.exit(1);
