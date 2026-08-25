@@ -3,50 +3,43 @@ const crypto = require("crypto");
 const dotenv = require("dotenv");
 const path = require("path");
 
-
-
-
-
 dotenv.config({
   path: path.resolve(__dirname, "..", ".env"),
 });
 
 const dbName =
-  process.env.DB_NAME || "rubavu_today";
+  (process.env.DB_NAME || "rubavu_today").trim();
 
 let pool = null;
 
-
-
-
-
 function getConnectionConfig() {
+  const host =
+    (process.env.DB_HOST || "127.0.0.1").trim();
+
+  const port =
+    Number(
+      String(process.env.DB_PORT || "3306").trim()
+    );
+
+  const user =
+    (process.env.DB_USER || "root").trim();
+
+  // Do NOT trim the password automatically.
+  // Passwords can legitimately contain spaces.
+  const password =
+    process.env.DB_PASSWORD || "";
+
   return {
-    host:
-      process.env.DB_HOST ||
-      "127.0.0.1",
-
-    port:
-      Number(process.env.DB_PORT) ||
-      3306,
-
-    user:
-      process.env.DB_USER ||
-      "root",
-
-    password:
-      process.env.DB_PASSWORD ||
-      "",
+    host,
+    port,
+    user,
+    password,
 
     connectTimeout: 10000,
 
     multipleStatements: false,
   };
 }
-
-
-
-
 
 function hashPassword(password) {
   if (!password) {
@@ -70,10 +63,6 @@ function hashPassword(password) {
 
   return `${salt}$${hash}`;
 }
-
-
-
-
 
 function verifyPassword(
   password,
@@ -129,10 +118,6 @@ function verifyPassword(
   }
 }
 
-
-
-
-
 async function safeAlter(
   label,
   sql
@@ -150,10 +135,6 @@ async function safeAlter(
     );
   }
 }
-
-
-
-
 
 async function columnExists(
   table,
@@ -177,10 +158,6 @@ async function columnExists(
 
   return rows.length > 0;
 }
-
-
-
-
 
 async function getColumnType(
   table,
@@ -207,10 +184,6 @@ async function getColumnType(
     : null;
 }
 
-
-
-
-
 async function tableExists(
   table
 ) {
@@ -230,10 +203,6 @@ async function tableExists(
 
   return rows.length > 0;
 }
-
-
-
-
 
 async function ensureDefaultAdmin() {
   try {
@@ -307,10 +276,6 @@ async function ensureDefaultAdmin() {
     );
   }
 }
-
-
-
-
 
 async function ensureDefaultChiefEditor() {
   try {
@@ -386,10 +351,6 @@ async function ensureDefaultChiefEditor() {
   }
 }
 
-
-
-
-
 async function init() {
   if (pool) {
     return pool;
@@ -401,10 +362,6 @@ async function init() {
   console.log(
     `[database] Connecting to ${connectionConfig.host}:${connectionConfig.port}`
   );
-
-  
-  
-  
 
   const connection =
     await mysql.createConnection(
@@ -427,10 +384,6 @@ async function init() {
     await connection.end();
   }
 
-  
-  
-  
-
   pool = mysql.createPool({
     ...connectionConfig,
 
@@ -444,18 +397,6 @@ async function init() {
 
     charset: "utf8mb4",
   });
-
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -498,10 +439,6 @@ async function init() {
     "[database] posts table ready."
   );
 
-  
-  
-  
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -531,10 +468,6 @@ async function init() {
   console.log(
     "[database] admins table ready."
   );
-
-  
-  
-  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chief_editors (
@@ -569,10 +502,6 @@ async function init() {
     "[database] chief_editors table ready."
   );
 
-  
-  
-  
-
   if (
     !(await columnExists(
       "chief_editors",
@@ -605,10 +534,6 @@ async function init() {
     );
   }
 
-  
-  
-  
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employees (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -640,10 +565,6 @@ async function init() {
         DEFAULT CURRENT_TIMESTAMP
     )
   `);
-
-  
-  
-  
 
   if (
     !(await columnExists(
@@ -726,10 +647,6 @@ async function init() {
     );
   }
 
-  
-  
-  
-
   try {
     await pool.query(`
       UPDATE employees
@@ -749,10 +666,6 @@ async function init() {
   console.log(
     "[database] employees table ready."
   );
-
-  
-  
-  
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS comments (
@@ -782,10 +695,6 @@ async function init() {
       ON DELETE CASCADE
     )
   `);
-
-  
-  
-  
 
   if (
     !(await columnExists(
@@ -855,10 +764,6 @@ async function init() {
     "[database] comments table ready."
   );
 
-  
-  
-  
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS advertisements (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -893,10 +798,6 @@ async function init() {
         DEFAULT NULL
     )
   `);
-
-  
-  
-  
 
   const adColumns = [
     [
@@ -960,14 +861,6 @@ async function init() {
     "[database] advertisements table ready."
   );
 
-  
-  
-  
-
-  
-  
-  
-
   if (
     !(await columnExists(
       "posts",
@@ -985,10 +878,6 @@ async function init() {
     );
   }
 
-  
-  
-  
-
   if (
     !(await columnExists(
       "posts",
@@ -1005,10 +894,6 @@ async function init() {
     );
   }
 
-  
-  
-  
-
   if (
     !(await columnExists(
       "posts",
@@ -1024,14 +909,6 @@ async function init() {
       `
     );
   }
-
-  
-  
-  
-
-  
-  
-  
 
   if (
     !(await columnExists(
@@ -1050,17 +927,6 @@ async function init() {
       `
     );
   }
-
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
 
   if (
     !(await columnExists(
@@ -1098,10 +964,6 @@ async function init() {
     }
   }
 
-  
-  
-  
-
   if (
     !(await columnExists(
       "posts",
@@ -1117,10 +979,6 @@ async function init() {
       `
     );
   }
-
-  
-  
-  
 
   if (
     !(await columnExists(
@@ -1138,25 +996,7 @@ async function init() {
     );
   }
 
-  
-  
-  
-
   try {
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
     await pool.query(`
       UPDATE posts
       SET status = 'approved'
@@ -1174,17 +1014,9 @@ async function init() {
     "[database] Post approval fields ready."
   );
 
-  
-  
-  
-
   await ensureDefaultAdmin();
 
   await ensureDefaultChiefEditor();
-
-  
-  
-  
 
   console.log(
     "[database] Database initialization completed successfully."
@@ -1192,10 +1024,6 @@ async function init() {
 
   return pool;
 }
-
-
-
-
 
 function getPool() {
   if (!pool) {
@@ -1206,10 +1034,6 @@ function getPool() {
 
   return pool;
 }
-
-
-
-
 
 module.exports = {
   init,
