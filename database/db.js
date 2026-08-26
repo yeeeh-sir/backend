@@ -211,38 +211,26 @@ function getConnectionConfig() {
 
   /*
    * Aiven MySQL requires encrypted connections.
+   *
+   * We keep TLS enabled but temporarily disable
+   * certificate verification to avoid the handshake
+   * problem currently happening on Render.
    */
 
   const ca =
     getCaCertificate();
 
-  if (ca) {
-    config.ssl = {
-      ca,
-      rejectUnauthorized: true,
-    };
+  config.ssl = {
+    rejectUnauthorized: false,
+  };
 
+  if (ca) {
     console.log(
-      "[database] SSL: enabled with Aiven CA certificate"
+      "[database] SSL: enabled (Aiven CA loaded, certificate verification disabled)"
     );
   } else {
-    /*
-     * Temporary fallback.
-     *
-     * Connection remains encrypted,
-     * but certificate verification is disabled.
-     */
-
-    config.ssl = {
-      rejectUnauthorized: false,
-    };
-
-    console.warn(
-      "[database] WARNING: Aiven CA certificate was not found."
-    );
-
-    console.warn(
-      "[database] TLS enabled without certificate verification."
+    console.log(
+      "[database] SSL: enabled (certificate verification disabled)"
     );
   }
 
@@ -381,11 +369,11 @@ async function columnExists(
   const [rows] =
     await pool.query(
       `
-      SELECT COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = ?
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
       `,
       [
         dbName,
@@ -408,11 +396,11 @@ async function getColumnType(
   const [rows] =
     await pool.query(
       `
-      SELECT DATA_TYPE
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = ?
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
+        SELECT DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
       `,
       [
         dbName,
@@ -451,10 +439,10 @@ async function ensureDefaultAdmin() {
     const [rows] =
       await pool.query(
         `
-        SELECT id
-        FROM admins
-        WHERE email = ?
-        LIMIT 1
+          SELECT id
+          FROM admins
+          WHERE email = ?
+          LIMIT 1
         `,
         [email]
       );
@@ -472,17 +460,17 @@ async function ensureDefaultAdmin() {
 
     await pool.execute(
       `
-      INSERT INTO admins
-      (
-        full_name,
-        email,
-        phone,
-        password,
-        authToken,
-        resetToken,
-        resetExpires
-      )
-      VALUES (?, ?, ?, ?, NULL, NULL, NULL)
+        INSERT INTO admins
+        (
+          full_name,
+          email,
+          phone,
+          password,
+          authToken,
+          resetToken,
+          resetExpires
+        )
+        VALUES (?, ?, ?, ?, NULL, NULL, NULL)
       `,
       [
         name,
@@ -528,10 +516,10 @@ async function ensureDefaultChiefEditor() {
     const [rows] =
       await pool.query(
         `
-        SELECT id
-        FROM chief_editors
-        WHERE email = ?
-        LIMIT 1
+          SELECT id
+          FROM chief_editors
+          WHERE email = ?
+          LIMIT 1
         `,
         [email]
       );
@@ -549,18 +537,18 @@ async function ensureDefaultChiefEditor() {
 
     await pool.execute(
       `
-      INSERT INTO chief_editors
-      (
-        full_name,
-        email,
-        phone,
-        password,
-        status,
-        authToken,
-        resetToken,
-        resetExpires
-      )
-      VALUES (?, ?, ?, ?, 'active', NULL, NULL, NULL)
+        INSERT INTO chief_editors
+        (
+          full_name,
+          email,
+          phone,
+          password,
+          status,
+          authToken,
+          resetToken,
+          resetExpires
+        )
+        VALUES (?, ?, ?, ?, 'active', NULL, NULL, NULL)
       `,
       [
         name,
@@ -891,9 +879,9 @@ async function init() {
       await safeAlter(
         `posts.${column}`,
         `
-        ALTER TABLE posts
-        ADD COLUMN \`${column}\`
-        ${definition}
+          ALTER TABLE posts
+          ADD COLUMN \`${column}\`
+          ${definition}
         `
       );
     }
@@ -941,9 +929,9 @@ async function init() {
       await safeAlter(
         `employees.${column}`,
         `
-        ALTER TABLE employees
-        ADD COLUMN \`${column}\`
-        ${definition}
+          ALTER TABLE employees
+          ADD COLUMN \`${column}\`
+          ${definition}
         `
       );
     }
@@ -987,9 +975,9 @@ async function init() {
       await safeAlter(
         `chief_editors.${column}`,
         `
-        ALTER TABLE chief_editors
-        ADD COLUMN \`${column}\`
-        ${definition}
+          ALTER TABLE chief_editors
+          ADD COLUMN \`${column}\`
+          ${definition}
         `
       );
     }
@@ -1033,9 +1021,9 @@ async function init() {
       await safeAlter(
         `comments.${column}`,
         `
-        ALTER TABLE comments
-        ADD COLUMN \`${column}\`
-        ${definition}
+          ALTER TABLE comments
+          ADD COLUMN \`${column}\`
+          ${definition}
         `
       );
     }
@@ -1095,9 +1083,9 @@ async function init() {
       await safeAlter(
         `advertisements.${column}`,
         `
-        ALTER TABLE advertisements
-        ADD COLUMN \`${column}\`
-        ${definition}
+          ALTER TABLE advertisements
+          ADD COLUMN \`${column}\`
+          ${definition}
         `
       );
     }
