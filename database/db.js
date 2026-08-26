@@ -12,7 +12,7 @@ dotenv.config({
 });
 
 /* =========================================================
-   DATABASE NAME
+   DATABASE SETTINGS
    ========================================================= */
 
 const dbName = String(
@@ -20,6 +20,43 @@ const dbName = String(
 ).trim();
 
 let pool = null;
+
+/* =========================================================
+   READ AIVEN CA CERTIFICATE
+   ========================================================= */
+
+function getCaCertificate() {
+  let ca = process.env.DB_SSL_CA || "";
+
+  if (!ca) {
+    return null;
+  }
+
+  /*
+   * Render environment variables may contain:
+   *
+   * -----BEGIN CERTIFICATE-----\n
+   * ...
+   * -----END CERTIFICATE-----
+   *
+   * Convert escaped \n into real new lines.
+   */
+
+  ca = ca.replace(/\\n/g, "\n").trim();
+
+  /*
+   * Remove accidental surrounding quotes.
+   */
+
+  if (
+    (ca.startsWith('"') && ca.endsWith('"')) ||
+    (ca.startsWith("'") && ca.endsWith("'"))
+  ) {
+    ca = ca.slice(1, -1).trim();
+  }
+
+  return ca;
+}
 
 /* =========================================================
    DATABASE CONNECTION CONFIG
@@ -33,23 +70,27 @@ function getConnectionConfig() {
 
   const port = Number(
     String(
-      process.env.DB_PORT || "3306"
+      process.env.DB_PORT ||
+        "3306"
     ).trim()
   );
 
   const user = String(
-    process.env.DB_USER || "root"
+    process.env.DB_USER ||
+      "root"
   ).trim();
 
   /*
-   * IMPORTANT:
-   * Never trim the password.
-   *
-   * Passwords can legitimately contain
-   * spaces or other special characters.
+   * DO NOT trim database password.
    */
   const password =
     process.env.DB_PASSWORD || "";
+
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error(
+      `Invalid DB_PORT: ${process.env.DB_PORT}`
+    );
+  }
 
   const config = {
     host,
@@ -73,56 +114,62 @@ function getConnectionConfig() {
   };
 
   /* =======================================================
-     AIVEN MYSQL SSL
+     AIVEN SSL
      ======================================================= */
 
+  const isProduction =
+    process.env.NODE_ENV === "production";
+
   const sslEnabled =
+    isProduction ||
     String(
       process.env.DB_SSL || ""
     ).toLowerCase() === "true";
 
+  const ca = getCaCertificate();
+
   if (sslEnabled) {
     /*
-     * Aiven provides a CA certificate.
+     * Aiven requires TLS.
      *
-     * Store the certificate in Render as:
-     *
-     * DB_SSL_CA
-     *
-     * mysql2 expects the actual certificate
-     * content, not a filename.
-     *
-     * Render environment variables can contain
-     * escaped \n characters, so convert them
-     * into real newlines.
+     * If CA is provided, verify the certificate.
      */
 
-    const caCertificate =
-      process.env.DB_SSL_CA
-        ? process.env.DB_SSL_CA.replace(
-            /\\n/g,
-            "\n"
-          )
-        : "";
+    if (ca) {
+      config.ssl = {
+        ca,
+        rejectUnauthorized: true,
+      };
 
-    if (!caCertificate) {
-      throw new Error(
-        "DB_SSL=true but DB_SSL_CA is missing."
+      console.log(
+        "[database] SSL: enabled with Aiven CA certificate"
+      );
+    } else {
+      /*
+       * Temporary fallback.
+       *
+       * This still encrypts the connection, but does not
+       * verify the server certificate.
+       *
+       * Prefer DB_SSL_CA on Render.
+       */
+
+      config.ssl = {
+        rejectUnauthorized: false,
+      };
+
+      console.warn(
+        "[database] WARNING: SSL enabled but DB_SSL_CA is missing."
+      );
+
+      console.warn(
+        "[database] Using TLS without CA verification."
       );
     }
-
-    config.ssl = {
-      ca: caCertificate,
-
-      /*
-       * Verify the Aiven server certificate.
-       *
-       * This is more secure than:
-       *
-       * rejectUnauthorized: false
-       */
-      rejectUnauthorized: true,
-    };
+  } else {
+    console.log(
+      "[database] SSL: disabled"
+    );
   }
 
   return config;
@@ -187,7 +234,6 @@ function verifyPassword(
   }
 
   const salt = parts[0];
-
   const storedHash = parts[1];
 
   if (!salt || !storedHash) {
@@ -216,7 +262,7 @@ function verifyPassword(
         "hex"
       )
     );
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -487,19 +533,8 @@ async function init() {
     return pool;
   }
 
-  let connectionConfig;
-
-  try {
-    connectionConfig =
-      getConnectionConfig();
-  } catch (error) {
-    console.error(
-      "[database] Configuration error:",
-      error.message
-    );
-
-    throw error;
-  }
+  const connectionConfig =
+    getConnectionConfig();
 
   console.log(
     `[database] Connecting to ${connectionConfig.host}:${connectionConfig.port}`
@@ -513,17 +548,10 @@ async function init() {
     `[database] User: ${connectionConfig.user}`
   );
 
-  console.log(
-    `[database] SSL: ${
-      connectionConfig.ssl
-        ? "enabled"
-        : "disabled"
-    }`
-  );
-
-  /* =======================================================
-     CREATE MYSQL POOL
-     ======================================================= */
+  /*
+   * IMPORTANT:
+   * Never print the database password.
+   */
 
   pool = mysql.createPool(
     connectionConfig
@@ -534,22 +562,38 @@ async function init() {
      ======================================================= */
 
   try {
-    const [rows] =
-      await pool.query(
+    const connection =
+      await pool.getConnection();
+
+    try {
+      await connection.query(
         "SELECT 1 AS connection_test"
       );
 
-    console.log(
-      `[database] Successfully connected to database "${dbName}".`
-    );
-
-    if (
-      rows &&
-      rows.length
-    ) {
       console.log(
-        "[database] Connection test: OK"
+        `[database] Successfully connected to "${dbName}".`
       );
+
+      if (connectionConfig.ssl) {
+        try {
+          const [sslRows] =
+            await connection.query(`
+              SHOW STATUS LIKE 'Ssl_cipher'
+            `);
+
+          console.log(
+            "[database] TLS status:",
+            sslRows
+          );
+        } catch (sslError) {
+          console.warn(
+            "[database] Could not read TLS status:",
+            sslError.message
+          );
+        }
+      }
+    } finally {
+      connection.release();
     }
   } catch (error) {
     console.error(
@@ -590,12 +634,7 @@ async function init() {
 
     try {
       await pool.end();
-    } catch (closeError) {
-      console.error(
-        "[database] Failed to close pool:",
-        closeError.message
-      );
-    }
+    } catch {}
 
     pool = null;
 
@@ -609,37 +648,17 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS posts (
       id INT AUTO_INCREMENT PRIMARY KEY,
-
       title VARCHAR(255) NOT NULL,
-
       category VARCHAR(100) NOT NULL,
-
       description TEXT NOT NULL,
-
       image VARCHAR(500) DEFAULT NULL,
-
-      createdDate DATETIME
-        NOT NULL
-        DEFAULT CURRENT_TIMESTAMP,
-
-      youtube_url VARCHAR(500)
-        DEFAULT NULL,
-
-      Author VARCHAR(150)
-        DEFAULT NULL,
-
-      status VARCHAR(20)
-        NOT NULL
-        DEFAULT 'pending',
-
-      approved_by VARCHAR(150)
-        DEFAULT NULL,
-
-      approved_at DATETIME
-        DEFAULT NULL,
-
-      rejection_reason TEXT
-        DEFAULT NULL
+      createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      youtube_url VARCHAR(500) DEFAULT NULL,
+      Author VARCHAR(150) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      approved_by VARCHAR(150) DEFAULT NULL,
+      approved_at DATETIME DEFAULT NULL,
+      rejection_reason TEXT DEFAULT NULL
     )
   `);
 
@@ -654,26 +673,14 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
       id INT AUTO_INCREMENT PRIMARY KEY,
-
       full_name VARCHAR(100) NOT NULL,
-
       email VARCHAR(150) NOT NULL UNIQUE,
-
       phone VARCHAR(20) DEFAULT NULL,
-
       password VARCHAR(255) NOT NULL,
-
-      authToken VARCHAR(128)
-        DEFAULT NULL,
-
-      resetToken VARCHAR(128)
-        DEFAULT NULL,
-
-      resetExpires DATETIME
-        DEFAULT NULL,
-
-      created_at TIMESTAMP
-        DEFAULT CURRENT_TIMESTAMP
+      authToken VARCHAR(128) DEFAULT NULL,
+      resetToken VARCHAR(128) DEFAULT NULL,
+      resetExpires DATETIME DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -688,29 +695,15 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chief_editors (
       id INT AUTO_INCREMENT PRIMARY KEY,
-
       full_name VARCHAR(100) NOT NULL,
-
       email VARCHAR(150) NOT NULL UNIQUE,
-
       phone VARCHAR(20) DEFAULT NULL,
-
       password VARCHAR(255) NOT NULL,
-
-      status VARCHAR(20)
-        DEFAULT 'active',
-
-      authToken VARCHAR(128)
-        DEFAULT NULL,
-
-      resetToken VARCHAR(128)
-        DEFAULT NULL,
-
-      resetExpires DATETIME
-        DEFAULT NULL,
-
-      created_at TIMESTAMP
-        DEFAULT CURRENT_TIMESTAMP
+      status VARCHAR(20) DEFAULT 'active',
+      authToken VARCHAR(128) DEFAULT NULL,
+      resetToken VARCHAR(128) DEFAULT NULL,
+      resetExpires DATETIME DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -765,32 +758,16 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employees (
       id INT AUTO_INCREMENT PRIMARY KEY,
-
       full_name VARCHAR(100) NOT NULL,
-
       email VARCHAR(150) NOT NULL UNIQUE,
-
       phone VARCHAR(20) DEFAULT NULL,
-
       password VARCHAR(255) NOT NULL,
-
-      role VARCHAR(100)
-        DEFAULT 'reporter',
-
-      status VARCHAR(20)
-        DEFAULT 'active',
-
-      authToken VARCHAR(128)
-        DEFAULT NULL,
-
-      resetToken VARCHAR(128)
-        DEFAULT NULL,
-
-      resetExpires DATETIME
-        DEFAULT NULL,
-
-      created_at TIMESTAMP
-        DEFAULT CURRENT_TIMESTAMP
+      role VARCHAR(100) DEFAULT 'reporter',
+      status VARCHAR(20) DEFAULT 'active',
+      authToken VARCHAR(128) DEFAULT NULL,
+      resetToken VARCHAR(128) DEFAULT NULL,
+      resetExpires DATETIME DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -926,24 +903,14 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS comments (
       id INT AUTO_INCREMENT PRIMARY KEY,
-
       post_id INT NOT NULL,
-
       name VARCHAR(100) NOT NULL,
-
       comment TEXT NOT NULL,
-
       parent_id INT DEFAULT NULL,
-
       likes INT DEFAULT 0,
-
       dislikes INT DEFAULT 0,
-
-      status VARCHAR(20)
-        DEFAULT 'pending',
-
-      created_at TIMESTAMP
-        DEFAULT CURRENT_TIMESTAMP,
+      status VARCHAR(20) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
       CONSTRAINT fk_comments_post
       FOREIGN KEY (post_id)
@@ -1043,35 +1010,16 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS advertisements (
       id INT AUTO_INCREMENT PRIMARY KEY,
-
       title VARCHAR(255) NOT NULL,
-
-      image VARCHAR(500)
-        DEFAULT NULL,
-
-      link VARCHAR(500)
-        DEFAULT NULL,
-
-      position VARCHAR(50)
-        DEFAULT 'sidebar',
-
-      start_date DATE
-        DEFAULT NULL,
-
-      end_date DATE
-        DEFAULT NULL,
-
-      status VARCHAR(20)
-        DEFAULT 'active',
-
-      created_at TIMESTAMP
-        DEFAULT CURRENT_TIMESTAMP,
-
-      description TEXT
-        DEFAULT NULL,
-
-      target_url VARCHAR(500)
-        DEFAULT NULL
+      image VARCHAR(500) DEFAULT NULL,
+      link VARCHAR(500) DEFAULT NULL,
+      position VARCHAR(50) DEFAULT 'sidebar',
+      start_date DATE DEFAULT NULL,
+      end_date DATE DEFAULT NULL,
+      status VARCHAR(20) DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      description TEXT DEFAULT NULL,
+      target_url VARCHAR(500) DEFAULT NULL
     )
   `);
 
