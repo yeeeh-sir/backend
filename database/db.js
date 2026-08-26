@@ -40,10 +40,30 @@ function getConnectionConfig() {
     "root"
   ).trim();
 
-  // Do NOT trim the password automatically.
-  // Passwords can legitimately contain spaces.
+  /*
+   * IMPORTANT:
+   * Do NOT trim the password.
+   * Passwords may contain spaces or special characters.
+   */
   const password =
     process.env.DB_PASSWORD || "";
+
+  /*
+   * Aiven MySQL requires SSL/TLS.
+   *
+   * Render + Aiven:
+   * DB_SSL=true
+   *
+   * Local XAMPP:
+   * DB_SSL=false
+   */
+
+  const sslEnabled =
+    String(
+      process.env.DB_SSL || ""
+    )
+      .trim()
+      .toLowerCase() === "true";
 
   const config = {
     host,
@@ -54,26 +74,18 @@ function getConnectionConfig() {
     connectTimeout: 20000,
 
     multipleStatements: false,
+
+    charset: "utf8mb4",
+
+    enableKeepAlive: true,
+
+    keepAliveInitialDelay: 10000,
   };
-
-  /*
-   * Aiven MySQL requires SSL.
-   *
-   * Set DB_SSL=false if you are using a local
-   * XAMPP/MariaDB database without SSL.
-   *
-   * Render + Aiven:
-   * DB_SSL=true
-   */
-
-  const sslEnabled =
-    String(
-      process.env.DB_SSL || ""
-    ).toLowerCase() === "true";
 
   if (sslEnabled) {
     config.ssl = {
       rejectUnauthorized: false,
+      minVersion: "TLSv1.2",
     };
   }
 
@@ -446,12 +458,10 @@ async function init() {
   );
 
   /*
-   * Connect directly to the selected database.
+   * Create MySQL connection pool.
    *
-   * IMPORTANT:
-   * We do NOT run CREATE DATABASE here.
-   *
-   * Aiven already provides "defaultdb".
+   * Aiven already provides the database.
+   * We therefore connect directly to DB_NAME.
    */
 
   pool = mysql.createPool({
@@ -466,6 +476,10 @@ async function init() {
     queueLimit: 0,
 
     charset: "utf8mb4",
+
+    enableKeepAlive: true,
+
+    keepAliveInitialDelay: 10000,
   });
 
   /* =======================================================
@@ -485,11 +499,6 @@ async function init() {
       "[database] Connection failed:",
       error
     );
-
-    /*
-     * Important:
-     * Close pool if connection fails.
-     */
 
     try {
       await pool.end();
