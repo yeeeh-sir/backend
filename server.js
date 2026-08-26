@@ -393,7 +393,7 @@ function requireChiefEditor(
   if (
     !req.user ||
     req.user.role_type !==
-      'chief_editor'
+    'chief_editor'
   ) {
     return res.status(403).json({
       error:
@@ -487,9 +487,57 @@ app.get(
   }
 );
 
-/* =========================================================
-   POSTS - PUBLIC
-========================================================= */
+function slugifyTitle(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  const normalized = String(value)
+    .replace(/&/g, ' and ')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’'`]/g, '')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/[\s_]+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized
+    .split(' ')
+    .filter(Boolean)
+    .join('-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function ensureUniqueSlug(title, fallbackId = null) {
+  const base = slugifyTitle(title) || `post-${fallbackId || Date.now()}`;
+  let slug = base;
+  let counter = 2;
+
+  while (true) {
+    const [rows] = await getPool().query(
+      `
+        SELECT id
+        FROM posts
+        WHERE slug = ?
+          AND (? IS NULL OR id != ?)
+        LIMIT 1
+      `,
+      [slug, fallbackId, fallbackId]
+    );
+
+    if (!rows.length) {
+      return slug;
+    }
+
+    slug = `${base}-${counter}`;
+    counter += 1;
+  }
+}
 
 app.get(
   '/api/posts',
@@ -560,6 +608,277 @@ app.get(
     }
   }
 );
+
+app.get(
+  '/api/posts/slug/:slug',
+  async (req, res) => {
+    try {
+      const normalizedSlug = String(req.params.slug || '').replace(/\.html$/i, '');
+
+      const [rows] = await getPool().query(
+        `
+          SELECT *
+          FROM posts
+          WHERE slug = ?
+            AND status = 'approved'
+          LIMIT 1
+        `,
+        [normalizedSlug]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          error: 'Post not found.'
+        });
+      }
+
+      res.json(rows[0]);
+    } catch (error) {
+      console.error('Fetch post by slug error:', error);
+      res.status(500).json({
+        error: 'Unable to fetch post.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/post/:id',
+  async (req, res) => {
+    try {
+      const postId = parseInt(req.params.id, 10);
+
+      if (!postId || postId <= 0) {
+        return res.status(404).send('Article not found');
+      }
+
+      const [rows] = await getPool().query(
+        `
+          SELECT *
+          FROM posts
+          WHERE id = ?
+            AND status = 'approved'
+          LIMIT 1
+        `,
+        [postId]
+      );
+
+      if (!rows.length) {
+        return res.status(404).send('Article not found');
+      }
+
+      const post = rows[0];
+
+      const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://rubavutoday.com';
+      const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+
+      const title = post.title || 'Rubavu Today';
+      const rawDescription = String(post.description || post.summary || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+      const description = rawDescription.slice(0, 200) || title;
+
+      let imageUrl = post.image || '';
+
+      if (imageUrl && !imageUrl.startsWith('http')) {
+        imageUrl = `${backendUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+      }
+
+      if (imageUrl && imageUrl.startsWith('http://')) {
+        imageUrl = imageUrl.replace(/^http:\/\//, 'https://');
+      }
+
+      const defaultImage = 'https://rubavutoday.com/Rubavu.jpeg';
+      const ogImage = imageUrl || defaultImage;
+
+      const canonicalUrl = `${appUrl}/post/${post.id}`;
+
+      const postDate = post.createdDate || post.created_at || post.createdAt || post.date;
+      const publishedTime = postDate ? new Date(postDate).toISOString() : '';
+
+      const escaped = {
+        title: escapeHtml(title),
+        description: escapeHtml(description),
+        ogImage: escapeHtml(ogImage),
+        canonicalUrl: escapeHtml(canonicalUrl),
+        author: escapeHtml(post.Author || 'Rubavu Today'),
+        category: escapeHtml(post.category || ''),
+        publishedTime: escapeHtml(publishedTime),
+      };
+
+      const metaTags = [
+        `<title>${escaped.title} | Rubavu Today</title>`,
+        `<meta name="description" content="${escaped.description}" />`,
+        `<meta name="robots" content="index, follow" />`,
+        `<link rel="canonical" href="${escaped.canonicalUrl}" />`,
+
+        `<meta property="og:type" content="article" />`,
+        `<meta property="og:title" content="${escaped.title}" />`,
+        `<meta property="og:description" content="${escaped.description}" />`,
+        `<meta property="og:image" content="${escaped.ogImage}" />`,
+        `<meta property="og:url" content="${escaped.canonicalUrl}" />`,
+        `<meta property="og:site_name" content="Rubavu Today" />`,
+
+        `<meta name="twitter:card" content="summary_large_image" />`,
+        `<meta name="twitter:title" content="${escaped.title}" />`,
+        `<meta name="twitter:description" content="${escaped.description}" />`,
+        `<meta name="twitter:image" content="${escaped.ogImage}" />`,
+      ];
+
+      if (escaped.publishedTime) {
+        metaTags.push(`<meta property="article:published_time" content="${escaped.publishedTime}" />`);
+      }
+
+      if (escaped.author) {
+        metaTags.push(`<meta property="article:author" content="${escaped.author}" />`);
+      }
+
+      if (escaped.category) {
+        metaTags.push(`<meta property="article:section" content="${escaped.category}" />`);
+      }
+
+      const frontendUrl = `${appUrl}/post/${post.id}`;
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+${metaTags.join('\n')}
+</head>
+<body>
+<p>Redirecting to article...</p>
+<script>window.location.href=${JSON.stringify(frontendUrl)};</script>
+<noscript><meta http-equiv="refresh" content="0;url=${frontendUrl}" /></noscript>
+</body>
+</html>`;
+
+      res.set({
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'Link': `<${canonicalUrl}>; rel="canonical"`,
+      });
+
+      return res.send(html);
+    } catch (error) {
+      console.error('Post SEO page error:', error);
+      return res.status(500).send('Unable to load article');
+    }
+  }
+);
+
+app.get(
+  '/:slug.html',
+  async (req, res) => {
+    const slug = String(req.params.slug || '').replace(/\.html$/i, '');
+
+    if (!slug) {
+      return res.status(404).send('Article not found');
+    }
+
+    try {
+      const [rows] = await getPool().query(
+        `
+          SELECT *
+          FROM posts
+          WHERE slug = ?
+          LIMIT 1
+        `,
+        [slug]
+      );
+
+      if (!rows.length) {
+        return res.status(404).send('Article not found');
+      }
+
+      if (rows[0].status !== 'approved') {
+        return res.status(404).send('Article not found');
+      }
+
+      const post = rows[0];
+      const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://rubavutoday.com';
+      const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+      const canonical = new URL(`/${slug}.html`, appUrl).toString();
+
+      let imageUrl = post.image || '';
+      if (imageUrl && !imageUrl.startsWith('http')) {
+        imageUrl = `${backendUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+      }
+      if (imageUrl && imageUrl.startsWith('http://')) {
+        imageUrl = imageUrl.replace(/^http:\/\//, 'https://');
+      }
+
+      const defaultImage = 'https://rubavutoday.com/Rubavu.jpeg';
+      const ogImage = imageUrl || defaultImage;
+
+      const title = escapeHtml(post.title || 'Rubavu Today');
+      const description = escapeHtml(String(post.description || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200));
+      const ogImageEscaped = escapeHtml(ogImage);
+      const author = escapeHtml(post.Author || 'Rubavu Today');
+      const category = escapeHtml(post.category || '');
+      const postDate = post.createdDate || post.created_at || post.createdAt || post.date;
+      const publishedTime = postDate ? new Date(postDate).toISOString() : '';
+      const frontendUrl = `${appUrl}/${slug}.html`;
+
+      const metaTags = [
+        `<title>${title} | Rubavu Today</title>`,
+        `<meta name="description" content="${description}" />`,
+        `<meta name="robots" content="index, follow" />`,
+        `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
+        `<meta property="og:type" content="article" />`,
+        `<meta property="og:title" content="${title}" />`,
+        `<meta property="og:description" content="${description}" />`,
+        `<meta property="og:image" content="${ogImageEscaped}" />`,
+        `<meta property="og:url" content="${escapeHtml(canonical)}" />`,
+        `<meta property="og:site_name" content="Rubavu Today" />`,
+        `<meta name="twitter:card" content="summary_large_image" />`,
+        `<meta name="twitter:title" content="${title}" />`,
+        `<meta name="twitter:description" content="${description}" />`,
+        `<meta name="twitter:image" content="${ogImageEscaped}" />`,
+      ];
+
+      if (publishedTime) {
+        metaTags.push(`<meta property="article:published_time" content="${escapeHtml(publishedTime)}" />`);
+      }
+      if (author) {
+        metaTags.push(`<meta property="article:author" content="${author}" />`);
+      }
+      if (category) {
+        metaTags.push(`<meta property="article:section" content="${category}" />`);
+      }
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+${metaTags.join('\n')}
+</head>
+<body>
+<p>Redirecting to article...</p>
+<script>window.location.href=${JSON.stringify(frontendUrl)};</script>
+<noscript><meta http-equiv="refresh" content="0;url=${frontendUrl}" /></noscript>
+</body>
+</html>`;
+
+      res.set({
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'Link': `<${canonical}>; rel="canonical"`,
+      });
+
+      res.send(html);
+    } catch (error) {
+      console.error('Slug page error:', error);
+      res.status(500).send('Unable to load article');
+    }
+  }
+);
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 /* =========================================================
    CHIEF EDITOR DASHBOARD
@@ -873,7 +1192,7 @@ app.put(
         req.user.email ||
         (
           req.user.role_type ===
-          'admin'
+            'admin'
             ? 'Admin'
             : 'Chief Editor'
         );
@@ -967,14 +1286,13 @@ app.put(
 
       const rejectionReason =
         reason &&
-        String(reason).trim()
+          String(reason).trim()
           ? String(reason).trim()
-          : `Post rejected by ${
-              req.user.role_type ===
-              'admin'
-                ? 'Admin'
-                : 'Chief Editor'
-            }.`;
+          : `Post rejected by ${req.user.role_type ===
+            'admin'
+            ? 'Admin'
+            : 'Chief Editor'
+          }.`;
 
       await pool.execute(
         `
@@ -1153,20 +1471,20 @@ app.post(
 
       const authorName =
         author &&
-        String(author).trim()
+          String(author).trim()
           ? String(author).trim()
           : req.user.full_name ||
-            req.user.email ||
-            'Admin';
+          req.user.email ||
+          'Admin';
 
       let postStatus =
         'pending';
 
       if (
         req.user.role_type ===
-          'admin' ||
+        'admin' ||
         req.user.role_type ===
-          'chief_editor'
+        'chief_editor'
       ) {
         postStatus =
           'approved';
@@ -1174,15 +1492,15 @@ app.post(
 
       const approvedBy =
         postStatus ===
-        'approved'
+          'approved'
           ? req.user.full_name ||
-            req.user.email ||
-            null
+          req.user.email ||
+          null
           : null;
 
       const approvedAt =
         postStatus ===
-        'approved'
+          'approved'
           ? new Date()
           : null;
 
@@ -1192,6 +1510,7 @@ app.post(
             INSERT INTO posts
             (
               title,
+              slug,
               category,
               description,
               image,
@@ -1203,10 +1522,11 @@ app.post(
               approved_by,
               approved_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
           `,
           [
             String(title).trim(),
+            '',
             String(category).trim(),
             description,
             imageUrl,
@@ -1218,6 +1538,17 @@ app.post(
             approvedAt
           ]
         );
+
+      const generatedSlug = await ensureUniqueSlug(String(title).trim(), result.insertId);
+
+      await getPool().execute(
+        `
+          UPDATE posts
+          SET slug = ?
+          WHERE id = ?
+        `,
+        [generatedSlug, result.insertId]
+      );
 
       const [rows] =
         await getPool().query(
@@ -1232,7 +1563,7 @@ app.post(
       res.status(201).json({
         message:
           postStatus ===
-          'pending'
+            'pending'
             ? 'Post submitted successfully and is waiting for Admin or Chief Editor approval.'
             : 'Post published successfully.',
         post:
@@ -1336,14 +1667,14 @@ app.put(
 
       const updatedYoutubeUrl =
         youtube_url !==
-        undefined
+          undefined
           ? youtube_url || null
           : existing.youtube_url;
 
       const updatedAuthor =
         author !==
           undefined &&
-        String(author).trim()
+          String(author).trim()
           ? String(author).trim()
           : existing.Author;
 
@@ -1378,9 +1709,9 @@ app.put(
 
       if (
         req.user.role_type ===
-          'admin' ||
+        'admin' ||
         req.user.role_type ===
-          'chief_editor'
+        'chief_editor'
       ) {
         if (
           existing.status ===
@@ -1402,11 +1733,21 @@ app.put(
         }
       }
 
+const incomingTitle = title !== undefined && String(title).trim()
+        ? String(title).trim()
+        : existing.title;
+
+      const nextSlug = existing.slug || await ensureUniqueSlug(incomingTitle, Number(id));
+      const normalizedUpdatedSlug = String(incomingTitle).trim()
+        ? await ensureUniqueSlug(incomingTitle, Number(id))
+        : nextSlug;
+
       await pool.execute(
         `
           UPDATE posts
           SET
             title = ?,
+            slug = ?,
             category = ?,
             description = ?,
             image = ?,
@@ -1419,13 +1760,11 @@ app.put(
           WHERE id = ?
         `,
         [
-          title !== undefined &&
-          String(title).trim()
-            ? String(title).trim()
-            : existing.title,
+          incomingTitle,
+          normalizedUpdatedSlug,
 
           category !== undefined &&
-          String(category).trim()
+            String(category).trim()
             ? String(category).trim()
             : existing.category,
 
@@ -1464,7 +1803,7 @@ app.put(
       res.json({
         message:
           req.user.role_type ===
-          'employee'
+            'employee'
             ? 'Post updated and sent back for Admin or Chief Editor approval.'
             : 'Post updated successfully.',
         post:
@@ -1826,10 +2165,10 @@ app.post(
       const imageUrl =
         req.file
           ? `${req.protocol}://${req.get(
-              'host'
-            )}/uploads/${encodeURIComponent(
-              req.file.filename
-            )}`
+            'host'
+          )}/uploads/${encodeURIComponent(
+            req.file.filename
+          )}`
           : null;
 
       const finalLink =
@@ -1952,10 +2291,10 @@ app.put(
       const imageUrl =
         req.file
           ? `${req.protocol}://${req.get(
-              'host'
-            )}/uploads/${encodeURIComponent(
-              req.file.filename
-            )}`
+            'host'
+          )}/uploads/${encodeURIComponent(
+            req.file.filename
+          )}`
           : existing.image;
 
       let finalLink =
@@ -1980,35 +2319,35 @@ app.put(
         position !== undefined
           ? position || 'sidebar'
           : existing.position ||
-            'sidebar';
+          'sidebar';
 
       const finalStatus =
         status !== undefined
           ? status || 'active'
           : existing.status ||
-            'active';
+          'active';
 
       const finalStartDate =
         start_date !==
-        undefined
+          undefined
           ? start_date || null
           : existing.start_date;
 
       const finalEndDate =
         end_date !==
-        undefined
+          undefined
           ? end_date || null
           : existing.end_date;
 
       const finalDescription =
         description !==
-        undefined
+          undefined
           ? description
           : existing.description;
 
       const finalTitle =
         title !== undefined &&
-        String(title).trim()
+          String(title).trim()
           ? String(title).trim()
           : existing.title;
 
@@ -2397,16 +2736,16 @@ app.put(
       const updatedName =
         full_name !==
           undefined &&
-        String(full_name).trim()
+          String(full_name).trim()
           ? String(full_name).trim()
           : existing.full_name;
 
       const updatedEmail =
         email !== undefined &&
-        String(email).trim()
+          String(email).trim()
           ? String(email)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.email;
 
       const updatedPhone =
@@ -2418,12 +2757,12 @@ app.put(
 
       const updatedRole =
         role !== undefined &&
-        String(role).trim()
+          String(role).trim()
           ? String(role)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.role ||
-            'reporter';
+          'reporter';
 
       if (
         updatedRole !==
@@ -2437,12 +2776,12 @@ app.put(
 
       const updatedStatus =
         status !== undefined &&
-        String(status).trim()
+          String(status).trim()
           ? String(status)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.status ||
-            'active';
+          'active';
 
       const [duplicateEmail] =
         await pool.query(
@@ -2835,16 +3174,16 @@ app.put(
 
       const updatedName =
         full_name !== undefined &&
-        String(full_name).trim()
+          String(full_name).trim()
           ? String(full_name).trim()
           : existing.full_name;
 
       const updatedEmail =
         email !== undefined &&
-        String(email).trim()
+          String(email).trim()
           ? String(email)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.email;
 
       const updatedPhone =
@@ -2856,12 +3195,12 @@ app.put(
 
       const updatedStatus =
         status !== undefined &&
-        String(status).trim()
+          String(status).trim()
           ? String(status)
-              .trim()
-              .toLowerCase()
+            .trim()
+            .toLowerCase()
           : existing.status ||
-            'active';
+          'active';
 
       const [duplicate] =
         await pool.query(
@@ -3109,7 +3448,7 @@ app.post(
       if (
         user.status &&
         user.status !==
-          'active'
+        'active'
       ) {
         return res.status(403).json({
           error:

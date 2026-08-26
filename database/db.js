@@ -834,6 +834,7 @@ async function init() {
     CREATE TABLE IF NOT EXISTS posts (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
+      slug VARCHAR(500) NULL UNIQUE,
       category VARCHAR(100) NOT NULL,
       description TEXT NOT NULL,
       image VARCHAR(500) DEFAULT NULL,
@@ -976,6 +977,10 @@ async function init() {
   ======================================================= */
 
   const postColumns = [
+    [
+      "slug",
+      "VARCHAR(500) NULL UNIQUE",
+    ],
     [
       "createdDate",
       "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
@@ -1267,6 +1272,73 @@ async function init() {
   } catch (error) {
     console.error(
       "[migration] Post status normalization failed:",
+      error.message
+    );
+  }
+
+  /* =======================================================
+     NORMALIZE POST SLUGS
+  ======================================================= */
+
+  try {
+    const [postRows] = await pool.query(`
+      SELECT id, title, slug
+      FROM posts
+      ORDER BY id ASC
+    `);
+
+    for (const post of postRows) {
+      const base = String(post.title || "")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9\s-]/g, " ")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      let slug = base || `post-${post.id}`;
+      let candidate = slug;
+      let counter = 2;
+
+      while (true) {
+        const [existing] = await pool.query(
+          `
+            SELECT id
+            FROM posts
+            WHERE slug = ?
+              AND id != ?
+            LIMIT 1
+          `,
+          [candidate, post.id]
+        );
+
+        if (!existing.length) {
+          break;
+        }
+
+        candidate = `${slug}-${counter}`;
+        counter += 1;
+      }
+
+      if (post.slug !== candidate) {
+        await pool.query(
+          `
+            UPDATE posts
+            SET slug = ?
+            WHERE id = ?
+          `,
+          [candidate, post.id]
+        );
+      }
+    }
+
+    console.log("[database] Post slugs normalized.");
+  } catch (error) {
+    console.error(
+      "[migration] Post slug normalization failed:",
       error.message
     );
   }
