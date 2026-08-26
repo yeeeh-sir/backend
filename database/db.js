@@ -28,13 +28,11 @@ let pool = null;
 
 function getCaCertificate() {
   /*
-   * Preferred method on Render:
-   *
-   * Create Secret File:
+   * Render Secret File:
    *
    * /etc/secrets/aiven-ca.pem
    *
-   * Then set:
+   * Environment variable:
    *
    * DB_SSL_CA_FILE=/etc/secrets/aiven-ca.pem
    */
@@ -50,13 +48,21 @@ function getCaCertificate() {
         "utf8"
       ).trim();
 
-      if (ca.includes("BEGIN CERTIFICATE")) {
+      if (
+        ca.includes(
+          "-----BEGIN CERTIFICATE-----"
+        )
+      ) {
         console.log(
-          `[database] SSL CA loaded from file: ${caFile}`
+          `[database] Aiven CA loaded from: ${caFile}`
         );
 
         return ca;
       }
+
+      console.warn(
+        `[database] CA file exists but does not contain a valid certificate: ${caFile}`
+      );
     } catch (error) {
       console.warn(
         "[database] Could not read CA file:",
@@ -67,7 +73,8 @@ function getCaCertificate() {
 
   /*
    * Fallback:
-   * Allow DB_SSL_CA environment variable.
+   *
+   * DB_SSL_CA
    */
 
   let ca =
@@ -87,7 +94,7 @@ function getCaCertificate() {
   );
 
   /*
-   * Remove accidental quotes.
+   * Remove accidental surrounding quotes.
    */
 
   if (
@@ -102,8 +109,7 @@ function getCaCertificate() {
   }
 
   /*
-   * Decode URL encoded certificate
-   * if necessary.
+   * Decode URL encoded certificate.
    */
 
   try {
@@ -115,11 +121,13 @@ function getCaCertificate() {
     ) {
       ca = decodeURIComponent(ca);
     }
-  } catch {
+  } catch (error) {
     console.warn(
       "[database] Could not URL-decode DB_SSL_CA."
     );
   }
+
+  ca = ca.trim();
 
   if (
     !ca.includes(
@@ -129,9 +137,15 @@ function getCaCertificate() {
     console.warn(
       "[database] DB_SSL_CA does not appear to contain a valid certificate."
     );
+
+    return null;
   }
 
-  return ca.trim();
+  console.log(
+    "[database] Aiven CA loaded from DB_SSL_CA environment variable"
+  );
+
+  return ca;
 }
 
 /* =========================================================
@@ -140,20 +154,17 @@ function getCaCertificate() {
 
 function getConnectionConfig() {
   const host = String(
-    process.env.DB_HOST ||
-      ""
+    process.env.DB_HOST || ""
   ).trim();
 
   const port = Number(
     String(
-      process.env.DB_PORT ||
-        "3306"
+      process.env.DB_PORT || "3306"
     ).trim()
   );
 
   const user = String(
-    process.env.DB_USER ||
-      "root"
+    process.env.DB_USER || "root"
   ).trim();
 
   /*
@@ -206,31 +217,64 @@ function getConnectionConfig() {
   };
 
   /* =======================================================
-     AIVEN TLS
+     LOCAL VS REMOTE DATABASE
+  ======================================================= */
+
+  const isLocalDatabase =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1";
+
+  /*
+   * LOCAL XAMPP / MariaDB
+   *
+   * XAMPP usually does not have SSL enabled.
+   *
+   * Therefore SSL MUST NOT be sent.
+   */
+
+  if (isLocalDatabase) {
+    console.log(
+      "[database] Local database detected: SSL disabled"
+    );
+
+    return config;
+  }
+
+  /* =======================================================
+     REMOTE DATABASE - AIVEN
   ======================================================= */
 
   /*
-   * Aiven MySQL requires encrypted connections.
-   *
-   * We keep TLS enabled but temporarily disable
-   * certificate verification to avoid the handshake
-   * problem currently happening on Render.
+   * Aiven requires encrypted connections.
    */
 
   const ca =
     getCaCertificate();
 
-  config.ssl = {
-    rejectUnauthorized: false,
-  };
-
   if (ca) {
+    config.ssl = {
+      ca: ca,
+      rejectUnauthorized: true,
+    };
+
     console.log(
-      "[database] SSL: enabled (Aiven CA loaded, certificate verification disabled)"
+      "[database] Remote database detected: SSL enabled with Aiven CA"
     );
   } else {
-    console.log(
-      "[database] SSL: enabled (certificate verification disabled)"
+    /*
+     * Fallback if CA is not mounted.
+     *
+     * This still encrypts the connection but does not
+     * verify the certificate.
+     */
+
+    config.ssl = {
+      rejectUnauthorized: false,
+    };
+
+    console.warn(
+      "[database] Remote database detected: SSL enabled without CA verification"
     );
   }
 
@@ -593,6 +637,14 @@ async function init() {
     `[database] User: ${connectionConfig.user}`
   );
 
+  console.log(
+    `[database] SSL: ${
+      connectionConfig.ssl
+        ? "enabled"
+        : "disabled"
+    }`
+  );
+
   /*
    * NEVER print password.
    */
@@ -619,21 +671,27 @@ async function init() {
         `[database] Successfully connected to "${dbName}".`
       );
 
-      try {
-        const [sslRows] =
-          await connection.query(
-            `SHOW STATUS LIKE 'Ssl_cipher'`
-          );
+      /*
+       * Check TLS status only when SSL is enabled.
+       */
 
-        console.log(
-          "[database] TLS status:",
-          sslRows
-        );
-      } catch (sslError) {
-        console.warn(
-          "[database] Could not read TLS status:",
-          sslError.message
-        );
+      if (connectionConfig.ssl) {
+        try {
+          const [sslRows] =
+            await connection.query(
+              `SHOW STATUS LIKE 'Ssl_cipher'`
+            );
+
+          console.log(
+            "[database] TLS status:",
+            sslRows
+          );
+        } catch (sslError) {
+          console.warn(
+            "[database] Could not read TLS status:",
+            sslError.message
+          );
+        }
       }
     } finally {
       connection.release();
