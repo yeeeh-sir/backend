@@ -3,6 +3,10 @@ const crypto = require("crypto");
 const dotenv = require("dotenv");
 const path = require("path");
 
+/* =========================================================
+   LOAD ENVIRONMENT VARIABLES
+   ========================================================= */
+
 dotenv.config({
   path: path.resolve(__dirname, "..", ".env"),
 });
@@ -11,9 +15,8 @@ dotenv.config({
    DATABASE NAME
    ========================================================= */
 
-const dbName = (
-  process.env.DB_NAME ||
-  "defaultdb"
+const dbName = String(
+  process.env.DB_NAME || "defaultdb"
 ).trim();
 
 let pool = null;
@@ -23,47 +26,30 @@ let pool = null;
    ========================================================= */
 
 function getConnectionConfig() {
-  const host = (
+  const host = String(
     process.env.DB_HOST ||
-    "127.0.0.1"
+      "127.0.0.1"
   ).trim();
 
   const port = Number(
     String(
-      process.env.DB_PORT ||
-      "3306"
+      process.env.DB_PORT || "3306"
     ).trim()
   );
 
-  const user = (
-    process.env.DB_USER ||
-    "root"
+  const user = String(
+    process.env.DB_USER || "root"
   ).trim();
 
   /*
    * IMPORTANT:
-   * Do NOT trim the password.
-   * Passwords may contain spaces or special characters.
+   * Never trim the password.
+   *
+   * Passwords can legitimately contain
+   * spaces or other special characters.
    */
   const password =
     process.env.DB_PASSWORD || "";
-
-  /*
-   * Aiven MySQL requires SSL/TLS.
-   *
-   * Render + Aiven:
-   * DB_SSL=true
-   *
-   * Local XAMPP:
-   * DB_SSL=false
-   */
-
-  const sslEnabled =
-    String(
-      process.env.DB_SSL || ""
-    )
-      .trim()
-      .toLowerCase() === "true";
 
   const config = {
     host,
@@ -71,21 +57,71 @@ function getConnectionConfig() {
     user,
     password,
 
-    connectTimeout: 20000,
+    database: dbName,
+
+    connectTimeout: 30000,
+
+    waitForConnections: true,
+
+    connectionLimit: 10,
+
+    queueLimit: 0,
 
     multipleStatements: false,
 
     charset: "utf8mb4",
-
-    enableKeepAlive: true,
-
-    keepAliveInitialDelay: 10000,
   };
 
+  /* =======================================================
+     AIVEN MYSQL SSL
+     ======================================================= */
+
+  const sslEnabled =
+    String(
+      process.env.DB_SSL || ""
+    ).toLowerCase() === "true";
+
   if (sslEnabled) {
+    /*
+     * Aiven provides a CA certificate.
+     *
+     * Store the certificate in Render as:
+     *
+     * DB_SSL_CA
+     *
+     * mysql2 expects the actual certificate
+     * content, not a filename.
+     *
+     * Render environment variables can contain
+     * escaped \n characters, so convert them
+     * into real newlines.
+     */
+
+    const caCertificate =
+      process.env.DB_SSL_CA
+        ? process.env.DB_SSL_CA.replace(
+            /\\n/g,
+            "\n"
+          )
+        : "";
+
+    if (!caCertificate) {
+      throw new Error(
+        "DB_SSL=true but DB_SSL_CA is missing."
+      );
+    }
+
     config.ssl = {
-      rejectUnauthorized: false,
-      minVersion: "TLSv1.2",
+      ca: caCertificate,
+
+      /*
+       * Verify the Aiven server certificate.
+       *
+       * This is more secure than:
+       *
+       * rejectUnauthorized: false
+       */
+      rejectUnauthorized: true,
     };
   }
 
@@ -151,6 +187,7 @@ function verifyPassword(
   }
 
   const salt = parts[0];
+
   const storedHash = parts[1];
 
   if (!salt || !storedHash) {
@@ -450,54 +487,105 @@ async function init() {
     return pool;
   }
 
-  const connectionConfig =
-    getConnectionConfig();
+  let connectionConfig;
+
+  try {
+    connectionConfig =
+      getConnectionConfig();
+  } catch (error) {
+    console.error(
+      "[database] Configuration error:",
+      error.message
+    );
+
+    throw error;
+  }
 
   console.log(
     `[database] Connecting to ${connectionConfig.host}:${connectionConfig.port}`
   );
 
-  /*
-   * Create MySQL connection pool.
-   *
-   * Aiven already provides the database.
-   * We therefore connect directly to DB_NAME.
-   */
+  console.log(
+    `[database] Database: ${dbName}`
+  );
 
-  pool = mysql.createPool({
-    ...connectionConfig,
+  console.log(
+    `[database] User: ${connectionConfig.user}`
+  );
 
-    database: dbName,
+  console.log(
+    `[database] SSL: ${
+      connectionConfig.ssl
+        ? "enabled"
+        : "disabled"
+    }`
+  );
 
-    waitForConnections: true,
+  /* =======================================================
+     CREATE MYSQL POOL
+     ======================================================= */
 
-    connectionLimit: 10,
-
-    queueLimit: 0,
-
-    charset: "utf8mb4",
-
-    enableKeepAlive: true,
-
-    keepAliveInitialDelay: 10000,
-  });
+  pool = mysql.createPool(
+    connectionConfig
+  );
 
   /* =======================================================
      TEST DATABASE CONNECTION
      ======================================================= */
 
   try {
-    await pool.query(
-      "SELECT 1 AS connection_test"
-    );
+    const [rows] =
+      await pool.query(
+        "SELECT 1 AS connection_test"
+      );
 
     console.log(
       `[database] Successfully connected to database "${dbName}".`
     );
+
+    if (
+      rows &&
+      rows.length
+    ) {
+      console.log(
+        "[database] Connection test: OK"
+      );
+    }
   } catch (error) {
     console.error(
-      "[database] Connection failed:",
-      error
+      "[database] Connection failed:"
+    );
+
+    console.error(
+      "Code:",
+      error.code
+    );
+
+    console.error(
+      "Message:",
+      error.message
+    );
+
+    console.error(
+      "Host:",
+      connectionConfig.host
+    );
+
+    console.error(
+      "Port:",
+      connectionConfig.port
+    );
+
+    console.error(
+      "Database:",
+      dbName
+    );
+
+    console.error(
+      "SSL:",
+      connectionConfig.ssl
+        ? "enabled"
+        : "disabled"
     );
 
     try {
