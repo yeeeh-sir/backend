@@ -32,22 +32,10 @@ function getCaCertificate() {
     return null;
   }
 
-  /*
-   * Render environment variables may contain:
-   *
-   * -----BEGIN CERTIFICATE-----\n
-   * ...
-   * -----END CERTIFICATE-----
-   *
-   * Convert escaped \n into real new lines.
-   */
-
+  // Convert escaped newlines to real newlines
   ca = ca.replace(/\\n/g, "\n").trim();
 
-  /*
-   * Remove accidental surrounding quotes.
-   */
-
+  // Remove accidental surrounding quotes
   if (
     (ca.startsWith('"') && ca.endsWith('"')) ||
     (ca.startsWith("'") && ca.endsWith("'"))
@@ -64,32 +52,40 @@ function getCaCertificate() {
 
 function getConnectionConfig() {
   const host = String(
-    process.env.DB_HOST ||
-      "127.0.0.1"
+    process.env.DB_HOST || "127.0.0.1"
   ).trim();
 
   const port = Number(
     String(
-      process.env.DB_PORT ||
-        "3306"
+      process.env.DB_PORT || "3306"
     ).trim()
   );
 
   const user = String(
-    process.env.DB_USER ||
-      "root"
+    process.env.DB_USER || "root"
   ).trim();
 
-  /*
-   * DO NOT trim database password.
-   */
+  // IMPORTANT:
+  // Never trim the password.
   const password =
     process.env.DB_PASSWORD || "";
 
-  if (!Number.isInteger(port) || port <= 0) {
+  if (!host) {
+    throw new Error("DB_HOST is missing.");
+  }
+
+  if (
+    !Number.isInteger(port) ||
+    port <= 0 ||
+    port > 65535
+  ) {
     throw new Error(
       `Invalid DB_PORT: ${process.env.DB_PORT}`
     );
+  }
+
+  if (!user) {
+    throw new Error("DB_USER is missing.");
   }
 
   const config = {
@@ -111,61 +107,38 @@ function getConnectionConfig() {
     multipleStatements: false,
 
     charset: "utf8mb4",
+
+    enableKeepAlive: true,
+
+    keepAliveInitialDelay: 0,
   };
 
   /* =======================================================
-     AIVEN SSL
+     AIVEN SSL / TLS
      ======================================================= */
 
-  const isProduction =
-    process.env.NODE_ENV === "production";
-
   const sslEnabled =
-    isProduction ||
     String(
-      process.env.DB_SSL || ""
+      process.env.DB_SSL || "true"
     ).toLowerCase() === "true";
 
   const ca = getCaCertificate();
 
   if (sslEnabled) {
-    /*
-     * Aiven requires TLS.
-     *
-     * If CA is provided, verify the certificate.
-     */
-
-    if (ca) {
-      config.ssl = {
-        ca,
-        rejectUnauthorized: true,
-      };
-
-      console.log(
-        "[database] SSL: enabled with Aiven CA certificate"
-      );
-    } else {
-      /*
-       * Temporary fallback.
-       *
-       * This still encrypts the connection, but does not
-       * verify the server certificate.
-       *
-       * Prefer DB_SSL_CA on Render.
-       */
-
-      config.ssl = {
-        rejectUnauthorized: false,
-      };
-
-      console.warn(
-        "[database] WARNING: SSL enabled but DB_SSL_CA is missing."
-      );
-
-      console.warn(
-        "[database] Using TLS without CA verification."
+    if (!ca) {
+      throw new Error(
+        "DB_SSL=true but DB_SSL_CA is missing."
       );
     }
+
+    config.ssl = {
+      ca: ca,
+      rejectUnauthorized: true,
+    };
+
+    console.log(
+      "[database] SSL: enabled with Aiven CA certificate"
+    );
   } else {
     console.log(
       "[database] SSL: disabled"
@@ -220,14 +193,15 @@ function verifyPassword(
     return false;
   }
 
-  if (
-    !String(storedPassword).includes("$")
-  ) {
+  const stored =
+    String(storedPassword);
+
+  if (!stored.includes("$")) {
     return false;
   }
 
   const parts =
-    String(storedPassword).split("$");
+    stored.split("$");
 
   if (parts.length !== 2) {
     return false;
@@ -548,10 +522,9 @@ async function init() {
     `[database] User: ${connectionConfig.user}`
   );
 
-  /*
-   * IMPORTANT:
-   * Never print the database password.
-   */
+  /* =======================================================
+     CREATE POOL
+     ======================================================= */
 
   pool = mysql.createPool(
     connectionConfig
@@ -574,12 +547,16 @@ async function init() {
         `[database] Successfully connected to "${dbName}".`
       );
 
+      /* ===================================================
+         TLS STATUS
+         =================================================== */
+
       if (connectionConfig.ssl) {
         try {
           const [sslRows] =
-            await connection.query(`
-              SHOW STATUS LIKE 'Ssl_cipher'
-            `);
+            await connection.query(
+              `SHOW STATUS LIKE 'Ssl_cipher'`
+            );
 
           console.log(
             "[database] TLS status:",
