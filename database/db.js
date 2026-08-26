@@ -2,6 +2,7 @@ const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const dotenv = require("dotenv");
 const path = require("path");
+const fs = require("fs");
 
 /* =========================================================
    LOAD ENVIRONMENT VARIABLES
@@ -26,49 +27,111 @@ let pool = null;
 ========================================================= */
 
 function getCaCertificate() {
-  let ca = process.env.DB_SSL_CA || "";
+  /*
+   * Preferred method on Render:
+   *
+   * Create Secret File:
+   *
+   * /etc/secrets/aiven-ca.pem
+   *
+   * Then set:
+   *
+   * DB_SSL_CA_FILE=/etc/secrets/aiven-ca.pem
+   */
+
+  const caFile =
+    process.env.DB_SSL_CA_FILE ||
+    "/etc/secrets/aiven-ca.pem";
+
+  if (fs.existsSync(caFile)) {
+    try {
+      const ca = fs.readFileSync(
+        caFile,
+        "utf8"
+      ).trim();
+
+      if (ca.includes("BEGIN CERTIFICATE")) {
+        console.log(
+          `[database] SSL CA loaded from file: ${caFile}`
+        );
+
+        return ca;
+      }
+    } catch (error) {
+      console.warn(
+        "[database] Could not read CA file:",
+        error.message
+      );
+    }
+  }
+
+  /*
+   * Fallback:
+   * Allow DB_SSL_CA environment variable.
+   */
+
+  let ca =
+    process.env.DB_SSL_CA || "";
 
   if (!ca) {
     return null;
   }
 
   /*
-   * Convert escaped newlines into real newlines.
+   * Convert escaped newlines.
    */
-  ca = String(ca)
-    .replace(/\\n/g, "\n")
-    .trim();
+
+  ca = ca.replace(
+    /\\n/g,
+    "\n"
+  );
 
   /*
-   * Remove accidental surrounding quotes.
+   * Remove accidental quotes.
    */
+
   if (
-    (ca.startsWith('"') && ca.endsWith('"')) ||
-    (ca.startsWith("'") && ca.endsWith("'"))
+    (ca.startsWith('"') &&
+      ca.endsWith('"')) ||
+    (ca.startsWith("'") &&
+      ca.endsWith("'"))
   ) {
-    ca = ca.slice(1, -1).trim();
+    ca = ca
+      .slice(1, -1)
+      .trim();
   }
 
   /*
-   * If Render contains URL-encoded certificate data,
-   * decode it once.
+   * Decode URL encoded certificate
+   * if necessary.
    */
-  if (
-    ca.includes("%0A") ||
-    ca.includes("%2B") ||
-    ca.includes("%2F") ||
-    ca.includes("%3D")
-  ) {
-    try {
+
+  try {
+    if (
+      ca.includes("%0A") ||
+      ca.includes("%2B") ||
+      ca.includes("%3D") ||
+      ca.includes("%2F")
+    ) {
       ca = decodeURIComponent(ca);
-    } catch (error) {
-      console.warn(
-        "[database] Could not URL-decode DB_SSL_CA."
-      );
     }
+  } catch {
+    console.warn(
+      "[database] Could not URL-decode DB_SSL_CA."
+    );
   }
 
-  return ca;
+  if (
+    !ca.includes(
+      "-----BEGIN CERTIFICATE-----"
+    )
+  ) {
+    console.warn(
+      "[database] DB_SSL_CA does not appear to contain a valid certificate."
+    );
+  }
+
+  return ca.trim();
 }
 
 /* =========================================================
@@ -77,25 +140,34 @@ function getCaCertificate() {
 
 function getConnectionConfig() {
   const host = String(
-    process.env.DB_HOST || "127.0.0.1"
+    process.env.DB_HOST ||
+      ""
   ).trim();
 
   const port = Number(
     String(
-      process.env.DB_PORT || "3306"
+      process.env.DB_PORT ||
+        "3306"
     ).trim()
   );
 
   const user = String(
-    process.env.DB_USER || "root"
+    process.env.DB_USER ||
+      "root"
   ).trim();
 
   /*
-   * IMPORTANT:
-   * Never trim the database password.
+   * NEVER trim password.
    */
+
   const password =
     process.env.DB_PASSWORD || "";
+
+  if (!host) {
+    throw new Error(
+      "DB_HOST is missing."
+    );
+  }
 
   if (
     !Number.isInteger(port) ||
@@ -104,6 +176,12 @@ function getConnectionConfig() {
   ) {
     throw new Error(
       `Invalid DB_PORT: ${process.env.DB_PORT}`
+    );
+  }
+
+  if (!user) {
+    throw new Error(
+      "DB_USER is missing."
     );
   }
 
@@ -125,55 +203,46 @@ function getConnectionConfig() {
     multipleStatements: false,
 
     charset: "utf8mb4",
-
-    enableKeepAlive: true,
-
-    keepAliveInitialDelay: 0,
   };
 
   /* =======================================================
-     SSL / TLS
+     AIVEN TLS
   ======================================================= */
 
-  const isProduction =
-    process.env.NODE_ENV === "production";
+  /*
+   * Aiven MySQL requires encrypted connections.
+   */
 
-  const sslEnabled =
-    isProduction ||
-    String(
-      process.env.DB_SSL || ""
-    ).toLowerCase() === "true";
+  const ca =
+    getCaCertificate();
 
-  const ca = getCaCertificate();
+  if (ca) {
+    config.ssl = {
+      ca,
+      rejectUnauthorized: true,
+    };
 
-  if (sslEnabled) {
-    if (ca) {
-      config.ssl = {
-        ca: ca,
-        rejectUnauthorized: true,
-        minVersion: "TLSv1.2",
-      };
-
-      console.log(
-        "[database] SSL: enabled with Aiven CA certificate"
-      );
-    } else {
-      config.ssl = {
-        rejectUnauthorized: false,
-        minVersion: "TLSv1.2",
-      };
-
-      console.warn(
-        "[database] WARNING: SSL enabled but DB_SSL_CA is missing."
-      );
-
-      console.warn(
-        "[database] Using TLS without CA verification."
-      );
-    }
-  } else {
     console.log(
-      "[database] SSL: disabled"
+      "[database] SSL: enabled with Aiven CA certificate"
+    );
+  } else {
+    /*
+     * Temporary fallback.
+     *
+     * Connection remains encrypted,
+     * but certificate verification is disabled.
+     */
+
+    config.ssl = {
+      rejectUnauthorized: false,
+    };
+
+    console.warn(
+      "[database] WARNING: Aiven CA certificate was not found."
+    );
+
+    console.warn(
+      "[database] TLS enabled without certificate verification."
     );
   }
 
@@ -225,25 +294,30 @@ function verifyPassword(
     return false;
   }
 
-  const stored = String(
-    storedPassword
-  );
-
-  if (!stored.includes("$")) {
+  if (
+    !String(storedPassword).includes("$")
+  ) {
     return false;
   }
 
   const parts =
-    stored.split("$");
+    String(
+      storedPassword
+    ).split("$");
 
   if (parts.length !== 2) {
     return false;
   }
 
   const salt = parts[0];
-  const storedHash = parts[1];
 
-  if (!salt || !storedHash) {
+  const storedHash =
+    parts[1];
+
+  if (
+    !salt ||
+    !storedHash
+  ) {
     return false;
   }
 
@@ -531,12 +605,17 @@ async function init() {
     `[database] User: ${connectionConfig.user}`
   );
 
-  pool = mysql.createPool(
-    connectionConfig
-  );
+  /*
+   * NEVER print password.
+   */
+
+  pool =
+    mysql.createPool(
+      connectionConfig
+    );
 
   /* =======================================================
-     TEST DATABASE CONNECTION
+     TEST CONNECTION
   ======================================================= */
 
   try {
@@ -552,23 +631,21 @@ async function init() {
         `[database] Successfully connected to "${dbName}".`
       );
 
-      if (connectionConfig.ssl) {
-        try {
-          const [sslRows] =
-            await connection.query(`
-              SHOW STATUS LIKE 'Ssl_cipher'
-            `);
+      try {
+        const [sslRows] =
+          await connection.query(
+            `SHOW STATUS LIKE 'Ssl_cipher'`
+          );
 
-          console.log(
-            "[database] TLS status:",
-            sslRows
-          );
-        } catch (sslError) {
-          console.warn(
-            "[database] Could not read TLS status:",
-            sslError.message
-          );
-        }
+        console.log(
+          "[database] TLS status:",
+          sslRows
+        );
+      } catch (sslError) {
+        console.warn(
+          "[database] Could not read TLS status:",
+          sslError.message
+        );
       }
     } finally {
       connection.release();
@@ -620,7 +697,7 @@ async function init() {
   }
 
   /* =======================================================
-     POSTS TABLE
+     POSTS
   ======================================================= */
 
   await pool.query(`
@@ -645,7 +722,7 @@ async function init() {
   );
 
   /* =======================================================
-     ADMINS TABLE
+     ADMINS
   ======================================================= */
 
   await pool.query(`
@@ -667,7 +744,7 @@ async function init() {
   );
 
   /* =======================================================
-     CHIEF EDITORS TABLE
+     CHIEF EDITORS
   ======================================================= */
 
   await pool.query(`
@@ -690,7 +767,7 @@ async function init() {
   );
 
   /* =======================================================
-     EMPLOYEES TABLE
+     EMPLOYEES
   ======================================================= */
 
   await pool.query(`
@@ -714,108 +791,7 @@ async function init() {
   );
 
   /* =======================================================
-     EMPLOYEE MIGRATIONS
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "employees",
-      "role"
-    ))
-  ) {
-    await safeAlter(
-      "employees.role",
-      `
-      ALTER TABLE employees
-      ADD COLUMN role VARCHAR(100)
-      DEFAULT 'reporter'
-      AFTER password
-      `
-    );
-  }
-
-  if (
-    !(await columnExists(
-      "employees",
-      "status"
-    ))
-  ) {
-    await safeAlter(
-      "employees.status",
-      `
-      ALTER TABLE employees
-      ADD COLUMN status VARCHAR(20)
-      DEFAULT 'active'
-      `
-    );
-  }
-
-  if (
-    !(await columnExists(
-      "employees",
-      "authToken"
-    ))
-  ) {
-    await safeAlter(
-      "employees.authToken",
-      `
-      ALTER TABLE employees
-      ADD COLUMN authToken VARCHAR(128)
-      DEFAULT NULL
-      `
-    );
-  }
-
-  if (
-    !(await columnExists(
-      "employees",
-      "resetToken"
-    ))
-  ) {
-    await safeAlter(
-      "employees.resetToken",
-      `
-      ALTER TABLE employees
-      ADD COLUMN resetToken VARCHAR(128)
-      DEFAULT NULL
-      `
-    );
-  }
-
-  if (
-    !(await columnExists(
-      "employees",
-      "resetExpires"
-    ))
-  ) {
-    await safeAlter(
-      "employees.resetExpires",
-      `
-      ALTER TABLE employees
-      ADD COLUMN resetExpires DATETIME
-      DEFAULT NULL
-      `
-    );
-  }
-
-  try {
-    await pool.query(`
-      UPDATE employees
-      SET role = 'reporter'
-      WHERE role IS NULL
-         OR role = ''
-         OR role = 'employee'
-         OR role = 'Staff'
-    `);
-  } catch (error) {
-    console.error(
-      "[migration] Could not normalize employee roles:",
-      error.message
-    );
-  }
-
-  /* =======================================================
-     COMMENTS TABLE
+     COMMENTS
   ======================================================= */
 
   await pool.query(`
@@ -842,51 +818,7 @@ async function init() {
   );
 
   /* =======================================================
-     COMMENT MIGRATIONS
-  ======================================================= */
-
-  const commentColumns = [
-    [
-      "parent_id",
-      "INT DEFAULT NULL"
-    ],
-    [
-      "likes",
-      "INT DEFAULT 0"
-    ],
-    [
-      "dislikes",
-      "INT DEFAULT 0"
-    ],
-    [
-      "status",
-      "VARCHAR(20) DEFAULT 'pending'"
-    ]
-  ];
-
-  for (
-    const [column, definition]
-    of commentColumns
-  ) {
-    if (
-      !(await columnExists(
-        "comments",
-        column
-      ))
-    ) {
-      await safeAlter(
-        `comments.${column}`,
-        `
-        ALTER TABLE comments
-        ADD COLUMN \`${column}\`
-        ${definition}
-        `
-      );
-    }
-  }
-
-  /* =======================================================
-     ADVERTISEMENTS TABLE
+     ADVERTISEMENTS
   ======================================================= */
 
   await pool.query(`
@@ -910,47 +842,249 @@ async function init() {
   );
 
   /* =======================================================
+     POSTS MIGRATIONS
+  ======================================================= */
+
+  const postColumns = [
+    [
+      "createdDate",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ],
+    [
+      "youtube_url",
+      "VARCHAR(500) DEFAULT NULL",
+    ],
+    [
+      "Author",
+      "VARCHAR(150) DEFAULT NULL",
+    ],
+    [
+      "status",
+      "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+    ],
+    [
+      "approved_by",
+      "VARCHAR(150) DEFAULT NULL",
+    ],
+    [
+      "approved_at",
+      "DATETIME DEFAULT NULL",
+    ],
+    [
+      "rejection_reason",
+      "TEXT DEFAULT NULL",
+    ],
+  ];
+
+  for (
+    const [
+      column,
+      definition,
+    ] of postColumns
+  ) {
+    if (
+      !(await columnExists(
+        "posts",
+        column
+      ))
+    ) {
+      await safeAlter(
+        `posts.${column}`,
+        `
+        ALTER TABLE posts
+        ADD COLUMN \`${column}\`
+        ${definition}
+        `
+      );
+    }
+  }
+
+  /* =======================================================
+     EMPLOYEE MIGRATIONS
+  ======================================================= */
+
+  const employeeColumns = [
+    [
+      "role",
+      "VARCHAR(100) DEFAULT 'reporter'",
+    ],
+    [
+      "status",
+      "VARCHAR(20) DEFAULT 'active'",
+    ],
+    [
+      "authToken",
+      "VARCHAR(128) DEFAULT NULL",
+    ],
+    [
+      "resetToken",
+      "VARCHAR(128) DEFAULT NULL",
+    ],
+    [
+      "resetExpires",
+      "DATETIME DEFAULT NULL",
+    ],
+  ];
+
+  for (
+    const [
+      column,
+      definition,
+    ] of employeeColumns
+  ) {
+    if (
+      !(await columnExists(
+        "employees",
+        column
+      ))
+    ) {
+      await safeAlter(
+        `employees.${column}`,
+        `
+        ALTER TABLE employees
+        ADD COLUMN \`${column}\`
+        ${definition}
+        `
+      );
+    }
+  }
+
+  /* =======================================================
+     CHIEF EDITOR MIGRATIONS
+  ======================================================= */
+
+  const chiefEditorColumns = [
+    [
+      "status",
+      "VARCHAR(20) DEFAULT 'active'",
+    ],
+    [
+      "authToken",
+      "VARCHAR(128) DEFAULT NULL",
+    ],
+    [
+      "resetToken",
+      "VARCHAR(128) DEFAULT NULL",
+    ],
+    [
+      "resetExpires",
+      "DATETIME DEFAULT NULL",
+    ],
+  ];
+
+  for (
+    const [
+      column,
+      definition,
+    ] of chiefEditorColumns
+  ) {
+    if (
+      !(await columnExists(
+        "chief_editors",
+        column
+      ))
+    ) {
+      await safeAlter(
+        `chief_editors.${column}`,
+        `
+        ALTER TABLE chief_editors
+        ADD COLUMN \`${column}\`
+        ${definition}
+        `
+      );
+    }
+  }
+
+  /* =======================================================
+     COMMENT MIGRATIONS
+  ======================================================= */
+
+  const commentColumns = [
+    [
+      "parent_id",
+      "INT DEFAULT NULL",
+    ],
+    [
+      "likes",
+      "INT DEFAULT 0",
+    ],
+    [
+      "dislikes",
+      "INT DEFAULT 0",
+    ],
+    [
+      "status",
+      "VARCHAR(20) DEFAULT 'pending'",
+    ],
+  ];
+
+  for (
+    const [
+      column,
+      definition,
+    ] of commentColumns
+  ) {
+    if (
+      !(await columnExists(
+        "comments",
+        column
+      ))
+    ) {
+      await safeAlter(
+        `comments.${column}`,
+        `
+        ALTER TABLE comments
+        ADD COLUMN \`${column}\`
+        ${definition}
+        `
+      );
+    }
+  }
+
+  /* =======================================================
      ADVERTISEMENT MIGRATIONS
   ======================================================= */
 
   const adColumns = [
     [
       "image",
-      "VARCHAR(500) DEFAULT NULL"
+      "VARCHAR(500) DEFAULT NULL",
     ],
     [
       "link",
-      "VARCHAR(500) DEFAULT NULL"
+      "VARCHAR(500) DEFAULT NULL",
     ],
     [
       "position",
-      "VARCHAR(50) DEFAULT 'sidebar'"
+      "VARCHAR(50) DEFAULT 'sidebar'",
     ],
     [
       "start_date",
-      "DATE DEFAULT NULL"
+      "DATE DEFAULT NULL",
     ],
     [
       "end_date",
-      "DATE DEFAULT NULL"
+      "DATE DEFAULT NULL",
     ],
     [
       "status",
-      "VARCHAR(20) DEFAULT 'active'"
+      "VARCHAR(20) DEFAULT 'active'",
     ],
     [
       "description",
-      "TEXT DEFAULT NULL"
+      "TEXT DEFAULT NULL",
     ],
     [
       "target_url",
-      "VARCHAR(500) DEFAULT NULL"
-    ]
+      "VARCHAR(500) DEFAULT NULL",
+    ],
   ];
 
   for (
-    const [column, definition]
-    of adColumns
+    const [
+      column,
+      definition,
+    ] of adColumns
   ) {
     if (
       !(await columnExists(
@@ -970,59 +1104,23 @@ async function init() {
   }
 
   /* =======================================================
-     POSTS MIGRATIONS
+     NORMALIZE DATA
   ======================================================= */
 
-  const postColumns = [
-    [
-      "createdDate",
-      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
-    ],
-    [
-      "youtube_url",
-      "VARCHAR(500) DEFAULT NULL"
-    ],
-    [
-      "Author",
-      "VARCHAR(150) DEFAULT NULL"
-    ],
-    [
-      "status",
-      "VARCHAR(20) NOT NULL DEFAULT 'pending'"
-    ],
-    [
-      "approved_by",
-      "VARCHAR(150) DEFAULT NULL"
-    ],
-    [
-      "approved_at",
-      "DATETIME DEFAULT NULL"
-    ],
-    [
-      "rejection_reason",
-      "TEXT DEFAULT NULL"
-    ]
-  ];
-
-  for (
-    const [column, definition]
-    of postColumns
-  ) {
-    if (
-      !(await columnExists(
-        "posts",
-        column
-      ))
-    ) {
-      await safeAlter(
-        `posts.${column}`,
-        `
-        ALTER TABLE posts
-        ADD COLUMN \`${column}\`
-        ${definition}
-        `
-      );
-    }
+  try {
+    await pool.query(`
+      UPDATE employees
+      SET role = 'reporter'
+      WHERE role IS NULL
+         OR role = ''
+         OR role = 'employee'
+         OR role = 'Staff'
+    `);
+  } catch (error) {
+    console.error(
+      "[migration] Employee role normalization failed:",
+      error.message
+    );
   }
 
   try {
@@ -1034,65 +1132,63 @@ async function init() {
     `);
   } catch (error) {
     console.error(
-      "[migration] Could not normalize post statuses:",
+      "[migration] Post status normalization failed:",
       error.message
     );
   }
 
-  console.log(
-    "[database] Post approval fields ready."
-  );
-
   /* =======================================================
-     PERFORMANCE INDEXES
+     INDEXES
   ======================================================= */
 
   const indexes = [
     [
       "idx_posts_status",
-      "CREATE INDEX idx_posts_status ON posts(status)"
+      "CREATE INDEX idx_posts_status ON posts(status)",
     ],
     [
       "idx_posts_author",
-      "CREATE INDEX idx_posts_author ON posts(Author)"
+      "CREATE INDEX idx_posts_author ON posts(Author)",
     ],
     [
       "idx_posts_created",
-      "CREATE INDEX idx_posts_created ON posts(createdDate)"
+      "CREATE INDEX idx_posts_created ON posts(createdDate)",
     ],
     [
       "idx_posts_status_created",
-      "CREATE INDEX idx_posts_status_created ON posts(status, createdDate)"
+      "CREATE INDEX idx_posts_status_created ON posts(status, createdDate)",
     ],
     [
       "idx_comments_post_id",
-      "CREATE INDEX idx_comments_post_id ON comments(post_id)"
+      "CREATE INDEX idx_comments_post_id ON comments(post_id)",
     ],
     [
       "idx_comments_parent",
-      "CREATE INDEX idx_comments_parent ON comments(parent_id)"
+      "CREATE INDEX idx_comments_parent ON comments(parent_id)",
     ],
     [
       "idx_auth_token_admins",
-      "CREATE INDEX idx_auth_token_admins ON admins(authToken)"
+      "CREATE INDEX idx_auth_token_admins ON admins(authToken)",
     ],
     [
       "idx_auth_token_chief",
-      "CREATE INDEX idx_auth_token_chief ON chief_editors(authToken)"
+      "CREATE INDEX idx_auth_token_chief ON chief_editors(authToken)",
     ],
     [
       "idx_auth_token_emp",
-      "CREATE INDEX idx_auth_token_emp ON employees(authToken)"
+      "CREATE INDEX idx_auth_token_emp ON employees(authToken)",
     ],
     [
       "idx_ads_status",
-      "CREATE INDEX idx_ads_status ON advertisements(status)"
-    ]
+      "CREATE INDEX idx_ads_status ON advertisements(status)",
+    ],
   ];
 
   for (
-    const [indexName, sql]
-    of indexes
+    const [
+      indexName,
+      sql,
+    ] of indexes
   ) {
     try {
       await pool.query(sql);
@@ -1102,7 +1198,8 @@ async function init() {
       );
     } catch (error) {
       if (
-        error.code === "ER_DUP_KEYNAME"
+        error.code ===
+        "ER_DUP_KEYNAME"
       ) {
         console.log(
           `[database] Index ${indexName} already exists.`
@@ -1121,12 +1218,20 @@ async function init() {
   );
 
   /* =======================================================
-     DEFAULT USERS
+     DEFAULT ADMIN
   ======================================================= */
 
   await ensureDefaultAdmin();
 
+  /* =======================================================
+     DEFAULT CHIEF EDITOR
+  ======================================================= */
+
   await ensureDefaultChiefEditor();
+
+  /* =======================================================
+     COMPLETE
+  ======================================================= */
 
   console.log(
     "[database] Database initialization completed successfully."
@@ -1157,5 +1262,5 @@ module.exports = {
   init,
   getPool,
   hashPassword,
-  verifyPassword
+  verifyPassword,
 };
