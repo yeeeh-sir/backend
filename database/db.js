@@ -36,7 +36,6 @@ function getConnectionConfig() {
     password,
 
     connectTimeout: 10000,
-
     multipleStatements: false,
   };
 }
@@ -51,15 +50,16 @@ function hashPassword(password) {
   const salt =
     crypto.randomBytes(16).toString("hex");
 
-  const hash = crypto
-    .pbkdf2Sync(
-      String(password),
-      salt,
-      100000,
-      64,
-      "sha512"
-    )
-    .toString("hex");
+  const hash =
+    crypto
+      .pbkdf2Sync(
+        String(password),
+        salt,
+        100000,
+        64,
+        "sha512"
+      )
+      .toString("hex");
 
   return `${salt}$${hash}`;
 }
@@ -92,15 +92,16 @@ function verifyPassword(
     return false;
   }
 
-  const candidateHash = crypto
-    .pbkdf2Sync(
-      String(password),
-      salt,
-      100000,
-      64,
-      "sha512"
-    )
-    .toString("hex");
+  const candidateHash =
+    crypto
+      .pbkdf2Sync(
+        String(password),
+        salt,
+        100000,
+        64,
+        "sha512"
+      )
+      .toString("hex");
 
   try {
     return crypto.timingSafeEqual(
@@ -1013,6 +1014,60 @@ async function init() {
   console.log(
     "[database] Post approval fields ready."
   );
+
+  // Performance indexes
+  try {
+    await pool.query(
+      `CREATE INDEX idx_posts_status ON posts(status)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_posts_author ON posts(Author)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_posts_created ON posts(createdDate)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_posts_status_created ON posts(status, createdDate)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_comments_post_id ON comments(post_id)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_comments_parent ON comments(parent_id)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_auth_token_admins ON admins(authToken)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_auth_token_chief ON chief_editors(authToken)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_auth_token_emp ON employees(authToken)`
+    );
+
+    await pool.query(
+      `CREATE INDEX idx_ads_status ON advertisements(status)`
+    );
+
+    console.log(
+      "[database] Performance indexes ready."
+    );
+  } catch (error) {
+    if (error.code !== "ER_DUP_KEYNAME") {
+      console.error(
+        "[migration] Index creation:",
+        error.message
+      );
+    }
+  }
 
   await ensureDefaultAdmin();
 
