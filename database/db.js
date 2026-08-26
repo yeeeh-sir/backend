@@ -2,7 +2,6 @@ const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const dotenv = require("dotenv");
 const path = require("path");
-const fs = require("fs");
 
 /* =========================================================
    LOAD ENVIRONMENT VARIABLES
@@ -33,9 +32,16 @@ function getCaCertificate() {
     return null;
   }
 
-  // Remove accidental surrounding quotes first
-  ca = String(ca).trim();
+  /*
+   * Convert escaped newlines into real newlines.
+   */
+  ca = String(ca)
+    .replace(/\\n/g, "\n")
+    .trim();
 
+  /*
+   * Remove accidental surrounding quotes.
+   */
   if (
     (ca.startsWith('"') && ca.endsWith('"')) ||
     (ca.startsWith("'") && ca.endsWith("'"))
@@ -43,19 +49,15 @@ function getCaCertificate() {
     ca = ca.slice(1, -1).trim();
   }
 
-  // Convert escaped newlines into real newlines
-  ca = ca.replace(/\\n/g, "\n");
-
   /*
-   * Some environments may provide the certificate URL encoded.
-   * Decode only if it actually looks URL encoded.
+   * If Render contains URL-encoded certificate data,
+   * decode it once.
    */
   if (
     ca.includes("%0A") ||
     ca.includes("%2B") ||
     ca.includes("%2F") ||
-    ca.includes("%3D") ||
-    ca.includes("%20")
+    ca.includes("%3D")
   ) {
     try {
       ca = decodeURIComponent(ca);
@@ -64,18 +66,6 @@ function getCaCertificate() {
         "[database] Could not URL-decode DB_SSL_CA."
       );
     }
-  }
-
-  ca = ca.trim();
-
-  // Validate certificate format
-  if (
-    !ca.includes("-----BEGIN CERTIFICATE-----") ||
-    !ca.includes("-----END CERTIFICATE-----")
-  ) {
-    console.warn(
-      "[database] DB_SSL_CA does not appear to be a valid PEM certificate."
-    );
   }
 
   return ca;
@@ -127,17 +117,17 @@ function getConnectionConfig() {
     connectTimeout: 30000,
 
     waitForConnections: true,
+
     connectionLimit: 10,
+
     queueLimit: 0,
 
     multipleStatements: false,
 
     charset: "utf8mb4",
 
-    /*
-     * Keep mysql2 handshake compatibility conservative.
-     */
     enableKeepAlive: true,
+
     keepAliveInitialDelay: 0,
   };
 
@@ -168,10 +158,6 @@ function getConnectionConfig() {
         "[database] SSL: enabled with Aiven CA certificate"
       );
     } else {
-      /*
-       * TLS remains enabled, but certificate verification
-       * is disabled if CA was not supplied.
-       */
       config.ssl = {
         rejectUnauthorized: false,
         minVersion: "TLSv1.2",
@@ -239,14 +225,16 @@ function verifyPassword(
     return false;
   }
 
-  if (
-    !String(storedPassword).includes("$")
-  ) {
+  const stored = String(
+    storedPassword
+  );
+
+  if (!stored.includes("$")) {
     return false;
   }
 
   const parts =
-    String(storedPassword).split("$");
+    stored.split("$");
 
   if (parts.length !== 2) {
     return false;
@@ -362,30 +350,6 @@ async function getColumnType(
   return rows.length
     ? rows[0].DATA_TYPE
     : null;
-}
-
-/* =========================================================
-   TABLE EXISTS
-========================================================= */
-
-async function tableExists(
-  table
-) {
-  const [rows] =
-    await pool.query(
-      `
-      SELECT TABLE_NAME
-      FROM INFORMATION_SCHEMA.TABLES
-      WHERE TABLE_SCHEMA = ?
-        AND TABLE_NAME = ?
-      `,
-      [
-        dbName,
-        table,
-      ]
-    );
-
-  return rows.length > 0;
 }
 
 /* =========================================================
@@ -726,46 +690,6 @@ async function init() {
   );
 
   /* =======================================================
-     CHIEF EDITOR RESET TOKEN
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "chief_editors",
-      "resetToken"
-    ))
-  ) {
-    await safeAlter(
-      "chief_editors.resetToken",
-      `
-      ALTER TABLE chief_editors
-      ADD COLUMN resetToken VARCHAR(128)
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
-     CHIEF EDITOR RESET EXPIRATION
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "chief_editors",
-      "resetExpires"
-    ))
-  ) {
-    await safeAlter(
-      "chief_editors.resetExpires",
-      `
-      ALTER TABLE chief_editors
-      ADD COLUMN resetExpires DATETIME
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
      EMPLOYEES TABLE
   ======================================================= */
 
@@ -785,8 +709,12 @@ async function init() {
     )
   `);
 
+  console.log(
+    "[database] employees table ready."
+  );
+
   /* =======================================================
-     EMPLOYEE ROLE
+     EMPLOYEE MIGRATIONS
   ======================================================= */
 
   if (
@@ -806,10 +734,6 @@ async function init() {
     );
   }
 
-  /* =======================================================
-     EMPLOYEE STATUS
-  ======================================================= */
-
   if (
     !(await columnExists(
       "employees",
@@ -825,10 +749,6 @@ async function init() {
       `
     );
   }
-
-  /* =======================================================
-     EMPLOYEE AUTH TOKEN
-  ======================================================= */
 
   if (
     !(await columnExists(
@@ -846,10 +766,6 @@ async function init() {
     );
   }
 
-  /* =======================================================
-     EMPLOYEE RESET TOKEN
-  ======================================================= */
-
   if (
     !(await columnExists(
       "employees",
@@ -865,10 +781,6 @@ async function init() {
       `
     );
   }
-
-  /* =======================================================
-     EMPLOYEE RESET EXPIRATION
-  ======================================================= */
 
   if (
     !(await columnExists(
@@ -886,10 +798,6 @@ async function init() {
     );
   }
 
-  /* =======================================================
-     NORMALIZE EMPLOYEE ROLES
-  ======================================================= */
-
   try {
     await pool.query(`
       UPDATE employees
@@ -905,10 +813,6 @@ async function init() {
       error.message
     );
   }
-
-  console.log(
-    "[database] employees table ready."
-  );
 
   /* =======================================================
      COMMENTS TABLE
@@ -933,89 +837,53 @@ async function init() {
     )
   `);
 
-  /* =======================================================
-     COMMENTS PARENT ID
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "comments",
-      "parent_id"
-    ))
-  ) {
-    await safeAlter(
-      "comments.parent_id",
-      `
-      ALTER TABLE comments
-      ADD COLUMN parent_id INT
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
-     COMMENTS LIKES
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "comments",
-      "likes"
-    ))
-  ) {
-    await safeAlter(
-      "comments.likes",
-      `
-      ALTER TABLE comments
-      ADD COLUMN likes INT
-      DEFAULT 0
-      `
-    );
-  }
-
-  /* =======================================================
-     COMMENTS DISLIKES
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "comments",
-      "dislikes"
-    ))
-  ) {
-    await safeAlter(
-      "comments.dislikes",
-      `
-      ALTER TABLE comments
-      ADD COLUMN dislikes INT
-      DEFAULT 0
-      `
-    );
-  }
-
-  /* =======================================================
-     COMMENTS STATUS
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "comments",
-      "status"
-    ))
-  ) {
-    await safeAlter(
-      "comments.status",
-      `
-      ALTER TABLE comments
-      ADD COLUMN status VARCHAR(20)
-      DEFAULT 'pending'
-      `
-    );
-  }
-
   console.log(
     "[database] comments table ready."
   );
+
+  /* =======================================================
+     COMMENT MIGRATIONS
+  ======================================================= */
+
+  const commentColumns = [
+    [
+      "parent_id",
+      "INT DEFAULT NULL"
+    ],
+    [
+      "likes",
+      "INT DEFAULT 0"
+    ],
+    [
+      "dislikes",
+      "INT DEFAULT 0"
+    ],
+    [
+      "status",
+      "VARCHAR(20) DEFAULT 'pending'"
+    ]
+  ];
+
+  for (
+    const [column, definition]
+    of commentColumns
+  ) {
+    if (
+      !(await columnExists(
+        "comments",
+        column
+      ))
+    ) {
+      await safeAlter(
+        `comments.${column}`,
+        `
+        ALTER TABLE comments
+        ADD COLUMN \`${column}\`
+        ${definition}
+        `
+      );
+    }
+  }
 
   /* =======================================================
      ADVERTISEMENTS TABLE
@@ -1037,6 +905,10 @@ async function init() {
     )
   `);
 
+  console.log(
+    "[database] advertisements table ready."
+  );
+
   /* =======================================================
      ADVERTISEMENT MIGRATIONS
   ======================================================= */
@@ -1044,43 +916,41 @@ async function init() {
   const adColumns = [
     [
       "image",
-      "VARCHAR(500) DEFAULT NULL",
+      "VARCHAR(500) DEFAULT NULL"
     ],
     [
       "link",
-      "VARCHAR(500) DEFAULT NULL",
+      "VARCHAR(500) DEFAULT NULL"
     ],
     [
       "position",
-      "VARCHAR(50) DEFAULT 'sidebar'",
+      "VARCHAR(50) DEFAULT 'sidebar'"
     ],
     [
       "start_date",
-      "DATE DEFAULT NULL",
+      "DATE DEFAULT NULL"
     ],
     [
       "end_date",
-      "DATE DEFAULT NULL",
+      "DATE DEFAULT NULL"
     ],
     [
       "status",
-      "VARCHAR(20) DEFAULT 'active'",
+      "VARCHAR(20) DEFAULT 'active'"
     ],
     [
       "description",
-      "TEXT DEFAULT NULL",
+      "TEXT DEFAULT NULL"
     ],
     [
       "target_url",
-      "VARCHAR(500) DEFAULT NULL",
-    ],
+      "VARCHAR(500) DEFAULT NULL"
+    ]
   ];
 
   for (
-    const [
-      column,
-      definition,
-    ] of adColumns
+    const [column, definition]
+    of adColumns
   ) {
     if (
       !(await columnExists(
@@ -1099,176 +969,61 @@ async function init() {
     }
   }
 
-  console.log(
-    "[database] advertisements table ready."
-  );
-
   /* =======================================================
-     POSTS CREATED DATE
+     POSTS MIGRATIONS
   ======================================================= */
 
-  if (
-    !(await columnExists(
-      "posts",
-      "createdDate"
-    ))
+  const postColumns = [
+    [
+      "createdDate",
+      "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    ],
+    [
+      "youtube_url",
+      "VARCHAR(500) DEFAULT NULL"
+    ],
+    [
+      "Author",
+      "VARCHAR(150) DEFAULT NULL"
+    ],
+    [
+      "status",
+      "VARCHAR(20) NOT NULL DEFAULT 'pending'"
+    ],
+    [
+      "approved_by",
+      "VARCHAR(150) DEFAULT NULL"
+    ],
+    [
+      "approved_at",
+      "DATETIME DEFAULT NULL"
+    ],
+    [
+      "rejection_reason",
+      "TEXT DEFAULT NULL"
+    ]
+  ];
+
+  for (
+    const [column, definition]
+    of postColumns
   ) {
-    await safeAlter(
-      "posts.createdDate",
-      `
-      ALTER TABLE posts
-      ADD COLUMN createdDate DATETIME
-      NOT NULL
-      DEFAULT CURRENT_TIMESTAMP
-      `
-    );
-  }
-
-  /* =======================================================
-     POSTS YOUTUBE URL
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "posts",
-      "youtube_url"
-    ))
-  ) {
-    await safeAlter(
-      "posts.youtube_url",
-      `
-      ALTER TABLE posts
-      ADD COLUMN youtube_url VARCHAR(500)
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
-     POSTS AUTHOR
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "posts",
-      "Author"
-    ))
-  ) {
-    await safeAlter(
-      "posts.Author",
-      `
-      ALTER TABLE posts
-      ADD COLUMN Author VARCHAR(150)
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
-     POSTS STATUS
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "posts",
-      "status"
-    ))
-  ) {
-    await safeAlter(
-      "posts.status",
-      `
-      ALTER TABLE posts
-      ADD COLUMN status VARCHAR(20)
-      NOT NULL
-      DEFAULT 'pending'
-      AFTER Author
-      `
-    );
-  }
-
-  /* =======================================================
-     POSTS APPROVED BY
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "posts",
-      "approved_by"
-    ))
-  ) {
-    await safeAlter(
-      "posts.approved_by",
-      `
-      ALTER TABLE posts
-      ADD COLUMN approved_by VARCHAR(150)
-      DEFAULT NULL
-      `
-    );
-  } else {
-    const approvedByType =
-      await getColumnType(
-        "posts",
-        "approved_by"
-      );
-
     if (
-      approvedByType &&
-      approvedByType !== "varchar"
+      !(await columnExists(
+        "posts",
+        column
+      ))
     ) {
       await safeAlter(
-        "posts.approved_by (widen to VARCHAR)",
+        `posts.${column}`,
         `
         ALTER TABLE posts
-        MODIFY COLUMN approved_by VARCHAR(150)
-        DEFAULT NULL
+        ADD COLUMN \`${column}\`
+        ${definition}
         `
       );
     }
   }
-
-  /* =======================================================
-     POSTS APPROVED AT
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "posts",
-      "approved_at"
-    ))
-  ) {
-    await safeAlter(
-      "posts.approved_at",
-      `
-      ALTER TABLE posts
-      ADD COLUMN approved_at DATETIME
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
-     POSTS REJECTION REASON
-  ======================================================= */
-
-  if (
-    !(await columnExists(
-      "posts",
-      "rejection_reason"
-    ))
-  ) {
-    await safeAlter(
-      "posts.rejection_reason",
-      `
-      ALTER TABLE posts
-      ADD COLUMN rejection_reason TEXT
-      DEFAULT NULL
-      `
-    );
-  }
-
-  /* =======================================================
-     NORMALIZE POST STATUSES
-  ======================================================= */
 
   try {
     await pool.query(`
@@ -1295,51 +1050,49 @@ async function init() {
   const indexes = [
     [
       "idx_posts_status",
-      "CREATE INDEX idx_posts_status ON posts(status)",
+      "CREATE INDEX idx_posts_status ON posts(status)"
     ],
     [
       "idx_posts_author",
-      "CREATE INDEX idx_posts_author ON posts(Author)",
+      "CREATE INDEX idx_posts_author ON posts(Author)"
     ],
     [
       "idx_posts_created",
-      "CREATE INDEX idx_posts_created ON posts(createdDate)",
+      "CREATE INDEX idx_posts_created ON posts(createdDate)"
     ],
     [
       "idx_posts_status_created",
-      "CREATE INDEX idx_posts_status_created ON posts(status, createdDate)",
+      "CREATE INDEX idx_posts_status_created ON posts(status, createdDate)"
     ],
     [
       "idx_comments_post_id",
-      "CREATE INDEX idx_comments_post_id ON comments(post_id)",
+      "CREATE INDEX idx_comments_post_id ON comments(post_id)"
     ],
     [
       "idx_comments_parent",
-      "CREATE INDEX idx_comments_parent ON comments(parent_id)",
+      "CREATE INDEX idx_comments_parent ON comments(parent_id)"
     ],
     [
       "idx_auth_token_admins",
-      "CREATE INDEX idx_auth_token_admins ON admins(authToken)",
+      "CREATE INDEX idx_auth_token_admins ON admins(authToken)"
     ],
     [
       "idx_auth_token_chief",
-      "CREATE INDEX idx_auth_token_chief ON chief_editors(authToken)",
+      "CREATE INDEX idx_auth_token_chief ON chief_editors(authToken)"
     ],
     [
       "idx_auth_token_emp",
-      "CREATE INDEX idx_auth_token_emp ON employees(authToken)",
+      "CREATE INDEX idx_auth_token_emp ON employees(authToken)"
     ],
     [
       "idx_ads_status",
-      "CREATE INDEX idx_ads_status ON advertisements(status)",
-    ],
+      "CREATE INDEX idx_ads_status ON advertisements(status)"
+    ]
   ];
 
   for (
-    const [
-      indexName,
-      sql,
-    ] of indexes
+    const [indexName, sql]
+    of indexes
   ) {
     try {
       await pool.query(sql);
@@ -1349,8 +1102,7 @@ async function init() {
       );
     } catch (error) {
       if (
-        error.code ===
-        "ER_DUP_KEYNAME"
+        error.code === "ER_DUP_KEYNAME"
       ) {
         console.log(
           `[database] Index ${indexName} already exists.`
@@ -1369,20 +1121,12 @@ async function init() {
   );
 
   /* =======================================================
-     DEFAULT ADMIN
+     DEFAULT USERS
   ======================================================= */
 
   await ensureDefaultAdmin();
 
-  /* =======================================================
-     DEFAULT CHIEF EDITOR
-  ======================================================= */
-
   await ensureDefaultChiefEditor();
-
-  /* =======================================================
-     INITIALIZATION COMPLETE
-  ======================================================= */
 
   console.log(
     "[database] Database initialization completed successfully."
@@ -1413,5 +1157,5 @@ module.exports = {
   init,
   getPool,
   hashPassword,
-  verifyPassword,
+  verifyPassword
 };

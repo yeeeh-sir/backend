@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": "22.x"
+    "node": "20.x"
   },
   "type": "commonjs",
   "dependencies": {
