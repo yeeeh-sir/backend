@@ -23,6 +23,66 @@ const dbName = String(
 let pool = null;
 
 /* =========================================================
+   NORMALIZE PEM CERTIFICATES
+========================================================= */
+
+function normalizePemCertificate(value, sourceLabel = "certificate") {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  let cert = String(value).trim();
+
+  if (!cert) {
+    return null;
+  }
+
+  cert = cert
+    .replace(/\uFEFF/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+
+  if (
+    (cert.startsWith('"') && cert.endsWith('"')) ||
+    (cert.startsWith("'") && cert.endsWith("'"))
+  ) {
+    cert = cert.slice(1, -1).trim();
+  }
+
+  try {
+    if (
+      cert.includes("%0A") ||
+      cert.includes("%0D") ||
+      cert.includes("%2B") ||
+      cert.includes("%3D") ||
+      cert.includes("%2F")
+    ) {
+      cert = decodeURIComponent(cert);
+    }
+  } catch (error) {
+    console.warn(
+      `[database] Could not URL-decode ${sourceLabel}.`
+    );
+  }
+
+  cert = cert
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+
+  if (
+    !cert.includes("-----BEGIN CERTIFICATE-----") ||
+    !cert.includes("-----END CERTIFICATE-----")
+  ) {
+    return null;
+  }
+
+  return cert;
+}
+
+/* =========================================================
    READ AIVEN CA CERTIFICATE
 ========================================================= */
 
@@ -37,24 +97,12 @@ function getCaCertificate() {
 
   if (fs.existsSync(caFile)) {
     try {
-      let ca = fs.readFileSync(
-        caFile,
-        "utf8"
+      const ca = normalizePemCertificate(
+        fs.readFileSync(caFile, "utf8"),
+        caFile
       );
 
-      ca = ca
-        .replace(/\r\n/g, "\n")
-        .replace(/\r/g, "\n")
-        .trim();
-
-      if (
-        ca.includes(
-          "-----BEGIN CERTIFICATE-----"
-        ) &&
-        ca.includes(
-          "-----END CERTIFICATE-----"
-        )
-      ) {
+      if (ca) {
         console.log(
           `[database] Aiven CA loaded from: ${caFile}`
         );
@@ -77,83 +125,17 @@ function getCaCertificate() {
      FALLBACK TO DB_SSL_CA
   ------------------------------------------------------- */
 
-  let ca =
-    process.env.DB_SSL_CA || "";
-
-  if (!ca) {
-    return null;
-  }
-
-  /*
-   * Convert escaped newlines.
-   */
-
-  ca = ca.replace(
-    /\\n/g,
-    "\n"
+  const ca = normalizePemCertificate(
+    process.env.DB_SSL_CA,
+    "DB_SSL_CA"
   );
 
-  /*
-   * Convert Windows newlines.
-   */
-
-  ca = ca
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
-
-  /*
-   * Remove surrounding quotes.
-   */
-
-  ca = ca.trim();
-
-  if (
-    (ca.startsWith('"') &&
-      ca.endsWith('"')) ||
-    (ca.startsWith("'") &&
-      ca.endsWith("'"))
-  ) {
-    ca = ca
-      .slice(1, -1)
-      .trim();
-  }
-
-  /*
-   * Decode URL encoding if present.
-   */
-
-  try {
-    if (
-      ca.includes("%0A") ||
-      ca.includes("%0D") ||
-      ca.includes("%2B") ||
-      ca.includes("%3D") ||
-      ca.includes("%2F")
-    ) {
-      ca = decodeURIComponent(ca);
+  if (!ca) {
+    if (process.env.DB_SSL_CA) {
+      console.warn(
+        "[database] DB_SSL_CA is present but is not a valid PEM certificate."
+      );
     }
-  } catch (error) {
-    console.warn(
-      "[database] Could not URL-decode DB_SSL_CA."
-    );
-  }
-
-  ca = ca
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .trim();
-
-  if (
-    !ca.includes(
-      "-----BEGIN CERTIFICATE-----"
-    ) ||
-    !ca.includes(
-      "-----END CERTIFICATE-----"
-    )
-  ) {
-    console.warn(
-      "[database] DB_SSL_CA is not a valid PEM certificate."
-    );
 
     return null;
   }
@@ -163,6 +145,31 @@ function getCaCertificate() {
   );
 
   return ca;
+}
+
+function isTruthy(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  return [
+    "1",
+    "true",
+    "yes",
+    "on",
+  ].includes(
+    String(value)
+      .trim()
+      .toLowerCase()
+  );
+}
+
+function isSslEnabledForRemoteDatabase() {
+  if (process.env.DB_SSL === undefined) {
+    return true;
+  }
+
+  return isTruthy(process.env.DB_SSL);
 }
 
 /* =========================================================
@@ -246,7 +253,7 @@ function getConnectionConfig(
 
   if (isLocalDatabase) {
     console.log(
-      "[database] Local database detected: SSL disabled"
+      "[database] Local database detected: SSL disabled to preserve XAMPP/MySQL compatibility"
     );
 
     return config;
@@ -256,43 +263,68 @@ function getConnectionConfig(
      REMOTE DATABASE
   ======================================================= */
 
-  const ca =
-    getCaCertificate();
+  const sslEnabled =
+    isSslEnabledForRemoteDatabase();
 
-  /*
-   * VERIFIED TLS
-   */
-
-  if (
-    useVerifiedSsl &&
-    ca
-  ) {
-    config.ssl = {
-      ca: ca,
-      rejectUnauthorized: true,
-    };
-
+  if (!sslEnabled) {
     console.log(
-      "[database] Remote database detected: SSL enabled with CA verification"
+      "[database] Remote database detected: DB_SSL is disabled, so TLS is turned off."
     );
 
     return config;
   }
 
-  /*
-   * ENCRYPTED TLS WITHOUT CERTIFICATE VERIFICATION.
-   *
-   * This is useful on Render when the Aiven certificate
-   * chain is rejected by Node because of a self-signed
-   * certificate in the chain.
-   */
+  const ca =
+    getCaCertificate();
+
+  const rejectUnauthorizedValue =
+    String(
+      process.env.DB_SSL_REJECT_UNAUTHORIZED ?? "true"
+    )
+      .trim()
+      .toLowerCase();
+
+  const allowUnverifiedTls =
+    ["0", "false", "no", "off"].includes(
+      rejectUnauthorizedValue
+    );
+
+  if (
+    useVerifiedSsl &&
+    ca &&
+    !allowUnverifiedTls
+  ) {
+    config.ssl = {
+      ca,
+      rejectUnauthorized: true,
+    };
+
+    console.log(
+      "[database] Remote database detected: SSL enabled with certificate verification using the Aiven CA."
+    );
+
+    return config;
+  }
+
+  if (ca) {
+    config.ssl = {
+      ca,
+      rejectUnauthorized: false,
+    };
+
+    console.warn(
+      "[database] Remote database TLS is enabled, but certificate verification is disabled. This usually means the Aiven certificate chain is not trusted by the Node.js runtime (for example, a self-signed CA or incomplete certificate chain). The connection remains encrypted, but verification is intentionally off."
+    );
+
+    return config;
+  }
 
   config.ssl = {
     rejectUnauthorized: false,
   };
 
   console.warn(
-    "[database] Remote database detected: SSL enabled without certificate verification"
+    "[database] Remote database TLS is enabled, but no valid DB_SSL_CA was provided. The connection will use encrypted TLS without certificate verification."
   );
 
   return config;
@@ -319,10 +351,9 @@ async function createDatabasePool() {
   );
 
   console.log(
-    `[database] SSL: ${
-      verifiedConfig.ssl
-        ? "enabled"
-        : "disabled"
+    `[database] SSL: ${verifiedConfig.ssl
+      ? "enabled"
+      : "disabled"
     }`
   );
 
@@ -369,7 +400,7 @@ async function createDatabasePool() {
 
     try {
       await testPool.end();
-    } catch {}
+    } catch { }
 
     /*
      * Only fallback for TLS/certificate errors.
@@ -434,7 +465,7 @@ async function createDatabasePool() {
   } catch (error) {
     try {
       await testPool.end();
-    } catch {}
+    } catch { }
 
     console.error(
       "[database] Fallback SSL connection also failed:"
@@ -1389,7 +1420,7 @@ async function closePool() {
 async function shutdownDatabase() {
   try {
     await closePool();
-  } catch {}
+  } catch { }
 }
 
 process.once(
