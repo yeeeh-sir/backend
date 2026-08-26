@@ -27,30 +27,32 @@ let pool = null;
 ========================================================= */
 
 function getCaCertificate() {
-  /*
-   * Render Secret File:
-   *
-   * /etc/secrets/aiven-ca.pem
-   *
-   * Environment variable:
-   *
-   * DB_SSL_CA_FILE=/etc/secrets/aiven-ca.pem
-   */
-
   const caFile =
     process.env.DB_SSL_CA_FILE ||
     "/etc/secrets/aiven-ca.pem";
 
+  /* -------------------------------------------------------
+     TRY RENDER SECRET FILE
+  ------------------------------------------------------- */
+
   if (fs.existsSync(caFile)) {
     try {
-      const ca = fs.readFileSync(
+      let ca = fs.readFileSync(
         caFile,
         "utf8"
-      ).trim();
+      );
+
+      ca = ca
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .trim();
 
       if (
         ca.includes(
           "-----BEGIN CERTIFICATE-----"
+        ) &&
+        ca.includes(
+          "-----END CERTIFICATE-----"
         )
       ) {
         console.log(
@@ -61,21 +63,19 @@ function getCaCertificate() {
       }
 
       console.warn(
-        `[database] CA file exists but does not contain a valid certificate: ${caFile}`
+        `[database] CA file does not contain a valid PEM certificate: ${caFile}`
       );
     } catch (error) {
       console.warn(
-        "[database] Could not read CA file:",
+        "[database] Failed to read CA file:",
         error.message
       );
     }
   }
 
-  /*
-   * Fallback:
-   *
-   * DB_SSL_CA
-   */
+  /* -------------------------------------------------------
+     FALLBACK TO DB_SSL_CA
+  ------------------------------------------------------- */
 
   let ca =
     process.env.DB_SSL_CA || "";
@@ -94,8 +94,18 @@ function getCaCertificate() {
   );
 
   /*
-   * Remove accidental surrounding quotes.
+   * Convert Windows newlines.
    */
+
+  ca = ca
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+
+  /*
+   * Remove surrounding quotes.
+   */
+
+  ca = ca.trim();
 
   if (
     (ca.startsWith('"') &&
@@ -109,12 +119,13 @@ function getCaCertificate() {
   }
 
   /*
-   * Decode URL encoded certificate.
+   * Decode URL encoding if present.
    */
 
   try {
     if (
       ca.includes("%0A") ||
+      ca.includes("%0D") ||
       ca.includes("%2B") ||
       ca.includes("%3D") ||
       ca.includes("%2F")
@@ -127,15 +138,21 @@ function getCaCertificate() {
     );
   }
 
-  ca = ca.trim();
+  ca = ca
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
 
   if (
     !ca.includes(
       "-----BEGIN CERTIFICATE-----"
+    ) ||
+    !ca.includes(
+      "-----END CERTIFICATE-----"
     )
   ) {
     console.warn(
-      "[database] DB_SSL_CA does not appear to contain a valid certificate."
+      "[database] DB_SSL_CA is not a valid PEM certificate."
     );
 
     return null;
@@ -152,7 +169,9 @@ function getCaCertificate() {
    DATABASE CONNECTION CONFIG
 ========================================================= */
 
-function getConnectionConfig() {
+function getConnectionConfig(
+  useVerifiedSsl = true
+) {
   const host = String(
     process.env.DB_HOST || ""
   ).trim();
@@ -168,7 +187,7 @@ function getConnectionConfig() {
   ).trim();
 
   /*
-   * NEVER trim password.
+   * NEVER trim the password.
    */
 
   const password =
@@ -217,21 +236,13 @@ function getConnectionConfig() {
   };
 
   /* =======================================================
-     LOCAL VS REMOTE DATABASE
+     LOCAL DATABASE
   ======================================================= */
 
   const isLocalDatabase =
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "::1";
-
-  /*
-   * LOCAL XAMPP / MariaDB
-   *
-   * XAMPP usually does not have SSL enabled.
-   *
-   * Therefore SSL MUST NOT be sent.
-   */
 
   if (isLocalDatabase) {
     console.log(
@@ -242,43 +253,205 @@ function getConnectionConfig() {
   }
 
   /* =======================================================
-     REMOTE DATABASE - AIVEN
+     REMOTE DATABASE
   ======================================================= */
-
-  /*
-   * Aiven requires encrypted connections.
-   */
 
   const ca =
     getCaCertificate();
 
-  if (ca) {
+  /*
+   * VERIFIED TLS
+   */
+
+  if (
+    useVerifiedSsl &&
+    ca
+  ) {
     config.ssl = {
       ca: ca,
       rejectUnauthorized: true,
     };
 
     console.log(
-      "[database] Remote database detected: SSL enabled with Aiven CA"
+      "[database] Remote database detected: SSL enabled with CA verification"
     );
-  } else {
+
+    return config;
+  }
+
+  /*
+   * ENCRYPTED TLS WITHOUT CERTIFICATE VERIFICATION.
+   *
+   * This is useful on Render when the Aiven certificate
+   * chain is rejected by Node because of a self-signed
+   * certificate in the chain.
+   */
+
+  config.ssl = {
+    rejectUnauthorized: false,
+  };
+
+  console.warn(
+    "[database] Remote database detected: SSL enabled without certificate verification"
+  );
+
+  return config;
+}
+
+/* =========================================================
+   CREATE DATABASE POOL
+========================================================= */
+
+async function createDatabasePool() {
+  const verifiedConfig =
+    getConnectionConfig(true);
+
+  console.log(
+    `[database] Connecting to ${verifiedConfig.host}:${verifiedConfig.port}`
+  );
+
+  console.log(
+    `[database] Database: ${dbName}`
+  );
+
+  console.log(
+    `[database] User: ${verifiedConfig.user}`
+  );
+
+  console.log(
+    `[database] SSL: ${
+      verifiedConfig.ssl
+        ? "enabled"
+        : "disabled"
+    }`
+  );
+
+  let testPool =
+    mysql.createPool(
+      verifiedConfig
+    );
+
+  /* -------------------------------------------------------
+     TEST VERIFIED CONNECTION
+  ------------------------------------------------------- */
+
+  try {
+    const connection =
+      await testPool.getConnection();
+
+    try {
+      await connection.query(
+        "SELECT 1 AS connection_test"
+      );
+
+      console.log(
+        "[database] Successfully connected using verified TLS."
+      );
+
+      return testPool;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error(
+      "[database] Verified SSL connection failed."
+    );
+
+    console.error(
+      "Code:",
+      error.code
+    );
+
+    console.error(
+      "Message:",
+      error.message
+    );
+
+    try {
+      await testPool.end();
+    } catch {}
+
     /*
-     * Fallback if CA is not mounted.
-     *
-     * This still encrypts the connection but does not
-     * verify the certificate.
+     * Only fallback for TLS/certificate errors.
      */
 
-    config.ssl = {
-      rejectUnauthorized: false,
-    };
+    const sslErrorCodes = [
+      "HANDSHAKE_SSL_ERROR",
+      "CERT_HAS_EXPIRED",
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "SELF_SIGNED_CERT_IN_CHAIN",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+      "ERR_TLS_CERT_ALTNAME_INVALID",
+    ];
+
+    const shouldFallback =
+      sslErrorCodes.includes(
+        error.code
+      );
+
+    if (!shouldFallback) {
+      throw error;
+    }
 
     console.warn(
-      "[database] Remote database detected: SSL enabled without CA verification"
+      "[database] Falling back to encrypted TLS without certificate verification..."
     );
   }
 
-  return config;
+  /* -------------------------------------------------------
+     FALLBACK TLS CONNECTION
+  ------------------------------------------------------- */
+
+  const fallbackConfig =
+    getConnectionConfig(false);
+
+  console.log(
+    "[database] Creating fallback SSL connection."
+  );
+
+  testPool =
+    mysql.createPool(
+      fallbackConfig
+    );
+
+  try {
+    const connection =
+      await testPool.getConnection();
+
+    try {
+      await connection.query(
+        "SELECT 1 AS connection_test"
+      );
+
+      console.log(
+        "[database] Successfully connected using fallback TLS."
+      );
+    } finally {
+      connection.release();
+    }
+
+    return testPool;
+  } catch (error) {
+    try {
+      await testPool.end();
+    } catch {}
+
+    console.error(
+      "[database] Fallback SSL connection also failed:"
+    );
+
+    console.error(
+      "Code:",
+      error.code
+    );
+
+    console.error(
+      "Message:",
+      error.message
+    );
+
+    throw error;
+  }
 }
 
 /* =========================================================
@@ -286,7 +459,11 @@ function getConnectionConfig() {
 ========================================================= */
 
 function hashPassword(password) {
-  if (!password) {
+  if (
+    password === undefined ||
+    password === null ||
+    String(password).length === 0
+  ) {
     throw new Error(
       "Password is required."
     );
@@ -320,28 +497,29 @@ function verifyPassword(
   storedPassword
 ) {
   if (
-    !password ||
+    password === undefined ||
+    password === null ||
     !storedPassword
   ) {
     return false;
   }
 
-  if (
-    !String(storedPassword).includes("$")
-  ) {
+  const stored =
+    String(storedPassword);
+
+  if (!stored.includes("$")) {
     return false;
   }
 
   const parts =
-    String(
-      storedPassword
-    ).split("$");
+    stored.split("$");
 
   if (parts.length !== 2) {
     return false;
   }
 
-  const salt = parts[0];
+  const salt =
+    parts[0];
 
   const storedHash =
     parts[1];
@@ -365,15 +543,28 @@ function verifyPassword(
       .toString("hex");
 
   try {
-    return crypto.timingSafeEqual(
+    const candidateBuffer =
       Buffer.from(
         candidateHash,
         "hex"
-      ),
+      );
+
+    const storedBuffer =
       Buffer.from(
         storedHash,
         "hex"
-      )
+      );
+
+    if (
+      candidateBuffer.length !==
+      storedBuffer.length
+    ) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(
+      candidateBuffer,
+      storedBuffer
     );
   } catch {
     return false;
@@ -430,35 +621,6 @@ async function columnExists(
 }
 
 /* =========================================================
-   GET COLUMN TYPE
-========================================================= */
-
-async function getColumnType(
-  table,
-  column
-) {
-  const [rows] =
-    await pool.query(
-      `
-        SELECT DATA_TYPE
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = ?
-          AND TABLE_NAME = ?
-          AND COLUMN_NAME = ?
-      `,
-      [
-        dbName,
-        table,
-        column,
-      ]
-    );
-
-  return rows.length
-    ? rows[0].DATA_TYPE
-    : null;
-}
-
-/* =========================================================
    DEFAULT ADMIN
 ========================================================= */
 
@@ -491,7 +653,7 @@ async function ensureDefaultAdmin() {
         [email]
       );
 
-    if (rows.length) {
+    if (rows.length > 0) {
       console.log(
         `[admin] Default admin already exists: ${email}`
       );
@@ -568,7 +730,7 @@ async function ensureDefaultChiefEditor() {
         [email]
       );
 
-    if (rows.length) {
+    if (rows.length > 0) {
       console.log(
         `[chief-editor] Default Chief Editor already exists: ${email}`
       );
@@ -622,125 +784,16 @@ async function init() {
     return pool;
   }
 
-  const connectionConfig =
-    getConnectionConfig();
-
   console.log(
-    `[database] Connecting to ${connectionConfig.host}:${connectionConfig.port}`
+    "[database] Initializing database..."
   );
 
-  console.log(
-    `[database] Database: ${dbName}`
-  );
-
-  console.log(
-    `[database] User: ${connectionConfig.user}`
-  );
-
-  console.log(
-    `[database] SSL: ${
-      connectionConfig.ssl
-        ? "enabled"
-        : "disabled"
-    }`
-  );
-
-  /*
-   * NEVER print password.
-   */
+  /* -------------------------------------------------------
+     CREATE CONNECTION
+  ------------------------------------------------------- */
 
   pool =
-    mysql.createPool(
-      connectionConfig
-    );
-
-  /* =======================================================
-     TEST CONNECTION
-  ======================================================= */
-
-  try {
-    const connection =
-      await pool.getConnection();
-
-    try {
-      await connection.query(
-        "SELECT 1 AS connection_test"
-      );
-
-      console.log(
-        `[database] Successfully connected to "${dbName}".`
-      );
-
-      /*
-       * Check TLS status only when SSL is enabled.
-       */
-
-      if (connectionConfig.ssl) {
-        try {
-          const [sslRows] =
-            await connection.query(
-              `SHOW STATUS LIKE 'Ssl_cipher'`
-            );
-
-          console.log(
-            "[database] TLS status:",
-            sslRows
-          );
-        } catch (sslError) {
-          console.warn(
-            "[database] Could not read TLS status:",
-            sslError.message
-          );
-        }
-      }
-    } finally {
-      connection.release();
-    }
-  } catch (error) {
-    console.error(
-      "[database] Connection failed:"
-    );
-
-    console.error(
-      "Code:",
-      error.code
-    );
-
-    console.error(
-      "Message:",
-      error.message
-    );
-
-    console.error(
-      "Host:",
-      connectionConfig.host
-    );
-
-    console.error(
-      "Port:",
-      connectionConfig.port
-    );
-
-    console.error(
-      "Database:",
-      dbName
-    );
-
-    console.error(
-      "SSL:",
-      connectionConfig.ssl
-        ? "enabled"
-        : "disabled"
-    );
-
-    try {
-      await pool.end();
-    } catch {}
-
-    pool = null;
-
-    throw error;
-  }
+    await createDatabasePool();
 
   /* =======================================================
      POSTS
@@ -1150,7 +1203,7 @@ async function init() {
   }
 
   /* =======================================================
-     NORMALIZE DATA
+     NORMALIZE EMPLOYEE DATA
   ======================================================= */
 
   try {
@@ -1168,6 +1221,10 @@ async function init() {
       error.message
     );
   }
+
+  /* =======================================================
+     NORMALIZE POST STATUS
+  ======================================================= */
 
   try {
     await pool.query(`
@@ -1301,12 +1358,58 @@ function getPool() {
 }
 
 /* =========================================================
+   CLOSE DATABASE
+========================================================= */
+
+async function closePool() {
+  if (!pool) {
+    return;
+  }
+
+  try {
+    await pool.end();
+
+    console.log(
+      "[database] Database pool closed."
+    );
+  } catch (error) {
+    console.error(
+      "[database] Failed to close database pool:",
+      error.message
+    );
+  } finally {
+    pool = null;
+  }
+}
+
+/* =========================================================
+   GRACEFUL SHUTDOWN
+========================================================= */
+
+async function shutdownDatabase() {
+  try {
+    await closePool();
+  } catch {}
+}
+
+process.once(
+  "SIGTERM",
+  shutdownDatabase
+);
+
+process.once(
+  "SIGINT",
+  shutdownDatabase
+);
+
+/* =========================================================
    EXPORTS
 ========================================================= */
 
 module.exports = {
   init,
   getPool,
+  closePool,
   hashPassword,
   verifyPassword,
 };
