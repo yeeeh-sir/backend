@@ -2,18 +2,19 @@ const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const dotenv = require("dotenv");
 const path = require("path");
+const fs = require("fs");
 
 /* =========================================================
    LOAD ENVIRONMENT VARIABLES
-   ========================================================= */
+========================================================= */
 
 dotenv.config({
   path: path.resolve(__dirname, "..", ".env"),
 });
 
 /* =========================================================
-   DATABASE SETTINGS
-   ========================================================= */
+   DATABASE NAME
+========================================================= */
 
 const dbName = String(
   process.env.DB_NAME || "defaultdb"
@@ -23,7 +24,7 @@ let pool = null;
 
 /* =========================================================
    READ AIVEN CA CERTIFICATE
-   ========================================================= */
+========================================================= */
 
 function getCaCertificate() {
   let ca = process.env.DB_SSL_CA || "";
@@ -32,10 +33,9 @@ function getCaCertificate() {
     return null;
   }
 
-  // Convert escaped newlines to real newlines
-  ca = ca.replace(/\\n/g, "\n").trim();
+  // Remove accidental surrounding quotes first
+  ca = String(ca).trim();
 
-  // Remove accidental surrounding quotes
   if (
     (ca.startsWith('"') && ca.endsWith('"')) ||
     (ca.startsWith("'") && ca.endsWith("'"))
@@ -43,12 +43,47 @@ function getCaCertificate() {
     ca = ca.slice(1, -1).trim();
   }
 
+  // Convert escaped newlines into real newlines
+  ca = ca.replace(/\\n/g, "\n");
+
+  /*
+   * Some environments may provide the certificate URL encoded.
+   * Decode only if it actually looks URL encoded.
+   */
+  if (
+    ca.includes("%0A") ||
+    ca.includes("%2B") ||
+    ca.includes("%2F") ||
+    ca.includes("%3D") ||
+    ca.includes("%20")
+  ) {
+    try {
+      ca = decodeURIComponent(ca);
+    } catch (error) {
+      console.warn(
+        "[database] Could not URL-decode DB_SSL_CA."
+      );
+    }
+  }
+
+  ca = ca.trim();
+
+  // Validate certificate format
+  if (
+    !ca.includes("-----BEGIN CERTIFICATE-----") ||
+    !ca.includes("-----END CERTIFICATE-----")
+  ) {
+    console.warn(
+      "[database] DB_SSL_CA does not appear to be a valid PEM certificate."
+    );
+  }
+
   return ca;
 }
 
 /* =========================================================
    DATABASE CONNECTION CONFIG
-   ========================================================= */
+========================================================= */
 
 function getConnectionConfig() {
   const host = String(
@@ -65,14 +100,12 @@ function getConnectionConfig() {
     process.env.DB_USER || "root"
   ).trim();
 
-  // IMPORTANT:
-  // Never trim the password.
+  /*
+   * IMPORTANT:
+   * Never trim the database password.
+   */
   const password =
     process.env.DB_PASSWORD || "";
-
-  if (!host) {
-    throw new Error("DB_HOST is missing.");
-  }
 
   if (
     !Number.isInteger(port) ||
@@ -84,61 +117,74 @@ function getConnectionConfig() {
     );
   }
 
-  if (!user) {
-    throw new Error("DB_USER is missing.");
-  }
-
   const config = {
     host,
     port,
     user,
     password,
-
     database: dbName,
 
     connectTimeout: 30000,
 
     waitForConnections: true,
-
     connectionLimit: 10,
-
     queueLimit: 0,
 
     multipleStatements: false,
 
     charset: "utf8mb4",
 
+    /*
+     * Keep mysql2 handshake compatibility conservative.
+     */
     enableKeepAlive: true,
-
     keepAliveInitialDelay: 0,
   };
 
   /* =======================================================
-     AIVEN SSL / TLS
-     ======================================================= */
+     SSL / TLS
+  ======================================================= */
+
+  const isProduction =
+    process.env.NODE_ENV === "production";
 
   const sslEnabled =
+    isProduction ||
     String(
-      process.env.DB_SSL || "true"
+      process.env.DB_SSL || ""
     ).toLowerCase() === "true";
 
   const ca = getCaCertificate();
 
   if (sslEnabled) {
-    if (!ca) {
-      throw new Error(
-        "DB_SSL=true but DB_SSL_CA is missing."
+    if (ca) {
+      config.ssl = {
+        ca: ca,
+        rejectUnauthorized: true,
+        minVersion: "TLSv1.2",
+      };
+
+      console.log(
+        "[database] SSL: enabled with Aiven CA certificate"
+      );
+    } else {
+      /*
+       * TLS remains enabled, but certificate verification
+       * is disabled if CA was not supplied.
+       */
+      config.ssl = {
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.2",
+      };
+
+      console.warn(
+        "[database] WARNING: SSL enabled but DB_SSL_CA is missing."
+      );
+
+      console.warn(
+        "[database] Using TLS without CA verification."
       );
     }
-
-    config.ssl = {
-      ca: ca,
-      rejectUnauthorized: true,
-    };
-
-    console.log(
-      "[database] SSL: enabled with Aiven CA certificate"
-    );
   } else {
     console.log(
       "[database] SSL: disabled"
@@ -150,7 +196,7 @@ function getConnectionConfig() {
 
 /* =========================================================
    PASSWORD HASHING
-   ========================================================= */
+========================================================= */
 
 function hashPassword(password) {
   if (!password) {
@@ -180,7 +226,7 @@ function hashPassword(password) {
 
 /* =========================================================
    PASSWORD VERIFICATION
-   ========================================================= */
+========================================================= */
 
 function verifyPassword(
   password,
@@ -193,15 +239,14 @@ function verifyPassword(
     return false;
   }
 
-  const stored =
-    String(storedPassword);
-
-  if (!stored.includes("$")) {
+  if (
+    !String(storedPassword).includes("$")
+  ) {
     return false;
   }
 
   const parts =
-    stored.split("$");
+    String(storedPassword).split("$");
 
   if (parts.length !== 2) {
     return false;
@@ -243,7 +288,7 @@ function verifyPassword(
 
 /* =========================================================
    SAFE ALTER
-   ========================================================= */
+========================================================= */
 
 async function safeAlter(
   label,
@@ -265,7 +310,7 @@ async function safeAlter(
 
 /* =========================================================
    COLUMN EXISTS
-   ========================================================= */
+========================================================= */
 
 async function columnExists(
   table,
@@ -292,7 +337,7 @@ async function columnExists(
 
 /* =========================================================
    GET COLUMN TYPE
-   ========================================================= */
+========================================================= */
 
 async function getColumnType(
   table,
@@ -321,7 +366,7 @@ async function getColumnType(
 
 /* =========================================================
    TABLE EXISTS
-   ========================================================= */
+========================================================= */
 
 async function tableExists(
   table
@@ -345,7 +390,7 @@ async function tableExists(
 
 /* =========================================================
    DEFAULT ADMIN
-   ========================================================= */
+========================================================= */
 
 async function ensureDefaultAdmin() {
   try {
@@ -422,7 +467,7 @@ async function ensureDefaultAdmin() {
 
 /* =========================================================
    DEFAULT CHIEF EDITOR
-   ========================================================= */
+========================================================= */
 
 async function ensureDefaultChiefEditor() {
   try {
@@ -500,7 +545,7 @@ async function ensureDefaultChiefEditor() {
 
 /* =========================================================
    DATABASE INITIALIZATION
-   ========================================================= */
+========================================================= */
 
 async function init() {
   if (pool) {
@@ -522,17 +567,13 @@ async function init() {
     `[database] User: ${connectionConfig.user}`
   );
 
-  /* =======================================================
-     CREATE POOL
-     ======================================================= */
-
   pool = mysql.createPool(
     connectionConfig
   );
 
   /* =======================================================
      TEST DATABASE CONNECTION
-     ======================================================= */
+  ======================================================= */
 
   try {
     const connection =
@@ -547,16 +588,12 @@ async function init() {
         `[database] Successfully connected to "${dbName}".`
       );
 
-      /* ===================================================
-         TLS STATUS
-         =================================================== */
-
       if (connectionConfig.ssl) {
         try {
           const [sslRows] =
-            await connection.query(
-              `SHOW STATUS LIKE 'Ssl_cipher'`
-            );
+            await connection.query(`
+              SHOW STATUS LIKE 'Ssl_cipher'
+            `);
 
           console.log(
             "[database] TLS status:",
@@ -620,7 +657,7 @@ async function init() {
 
   /* =======================================================
      POSTS TABLE
-     ======================================================= */
+  ======================================================= */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -645,7 +682,7 @@ async function init() {
 
   /* =======================================================
      ADMINS TABLE
-     ======================================================= */
+  ======================================================= */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
@@ -667,7 +704,7 @@ async function init() {
 
   /* =======================================================
      CHIEF EDITORS TABLE
-     ======================================================= */
+  ======================================================= */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chief_editors (
@@ -690,7 +727,7 @@ async function init() {
 
   /* =======================================================
      CHIEF EDITOR RESET TOKEN
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -710,7 +747,7 @@ async function init() {
 
   /* =======================================================
      CHIEF EDITOR RESET EXPIRATION
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -730,7 +767,7 @@ async function init() {
 
   /* =======================================================
      EMPLOYEES TABLE
-     ======================================================= */
+  ======================================================= */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employees (
@@ -750,7 +787,7 @@ async function init() {
 
   /* =======================================================
      EMPLOYEE ROLE
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -771,7 +808,7 @@ async function init() {
 
   /* =======================================================
      EMPLOYEE STATUS
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -791,7 +828,7 @@ async function init() {
 
   /* =======================================================
      EMPLOYEE AUTH TOKEN
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -811,7 +848,7 @@ async function init() {
 
   /* =======================================================
      EMPLOYEE RESET TOKEN
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -831,7 +868,7 @@ async function init() {
 
   /* =======================================================
      EMPLOYEE RESET EXPIRATION
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -851,7 +888,7 @@ async function init() {
 
   /* =======================================================
      NORMALIZE EMPLOYEE ROLES
-     ======================================================= */
+  ======================================================= */
 
   try {
     await pool.query(`
@@ -875,7 +912,7 @@ async function init() {
 
   /* =======================================================
      COMMENTS TABLE
-     ======================================================= */
+  ======================================================= */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS comments (
@@ -898,7 +935,7 @@ async function init() {
 
   /* =======================================================
      COMMENTS PARENT ID
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -918,7 +955,7 @@ async function init() {
 
   /* =======================================================
      COMMENTS LIKES
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -938,7 +975,7 @@ async function init() {
 
   /* =======================================================
      COMMENTS DISLIKES
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -958,7 +995,7 @@ async function init() {
 
   /* =======================================================
      COMMENTS STATUS
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -982,7 +1019,7 @@ async function init() {
 
   /* =======================================================
      ADVERTISEMENTS TABLE
-     ======================================================= */
+  ======================================================= */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS advertisements (
@@ -1002,7 +1039,7 @@ async function init() {
 
   /* =======================================================
      ADVERTISEMENT MIGRATIONS
-     ======================================================= */
+  ======================================================= */
 
   const adColumns = [
     [
@@ -1068,7 +1105,7 @@ async function init() {
 
   /* =======================================================
      POSTS CREATED DATE
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1089,7 +1126,7 @@ async function init() {
 
   /* =======================================================
      POSTS YOUTUBE URL
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1109,7 +1146,7 @@ async function init() {
 
   /* =======================================================
      POSTS AUTHOR
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1129,7 +1166,7 @@ async function init() {
 
   /* =======================================================
      POSTS STATUS
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1151,7 +1188,7 @@ async function init() {
 
   /* =======================================================
      POSTS APPROVED BY
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1191,7 +1228,7 @@ async function init() {
 
   /* =======================================================
      POSTS APPROVED AT
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1211,7 +1248,7 @@ async function init() {
 
   /* =======================================================
      POSTS REJECTION REASON
-     ======================================================= */
+  ======================================================= */
 
   if (
     !(await columnExists(
@@ -1231,7 +1268,7 @@ async function init() {
 
   /* =======================================================
      NORMALIZE POST STATUSES
-     ======================================================= */
+  ======================================================= */
 
   try {
     await pool.query(`
@@ -1253,7 +1290,7 @@ async function init() {
 
   /* =======================================================
      PERFORMANCE INDEXES
-     ======================================================= */
+  ======================================================= */
 
   const indexes = [
     [
@@ -1333,19 +1370,19 @@ async function init() {
 
   /* =======================================================
      DEFAULT ADMIN
-     ======================================================= */
+  ======================================================= */
 
   await ensureDefaultAdmin();
 
   /* =======================================================
      DEFAULT CHIEF EDITOR
-     ======================================================= */
+  ======================================================= */
 
   await ensureDefaultChiefEditor();
 
   /* =======================================================
      INITIALIZATION COMPLETE
-     ======================================================= */
+  ======================================================= */
 
   console.log(
     "[database] Database initialization completed successfully."
@@ -1356,7 +1393,7 @@ async function init() {
 
 /* =========================================================
    GET POOL
-   ========================================================= */
+========================================================= */
 
 function getPool() {
   if (!pool) {
@@ -1370,7 +1407,7 @@ function getPool() {
 
 /* =========================================================
    EXPORTS
-   ========================================================= */
+========================================================= */
 
 module.exports = {
   init,
