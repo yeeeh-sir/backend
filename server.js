@@ -580,6 +580,55 @@ app.get(
 );
 
 app.get(
+  '/sitemap.xml',
+  async (req, res) => {
+    try {
+      const [rows] = await getPool().query(
+        `
+          SELECT slug, createdDate
+          FROM posts
+          WHERE status = 'approved'
+            AND slug IS NOT NULL
+            AND slug != ''
+          ORDER BY createdDate DESC, id DESC
+        `
+      );
+
+      const urls = [
+        `  <url>\n    <loc>https://rubavutoday.com/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+        ...rows.map((post) => {
+          const loc = `https://rubavutoday.com/${post.slug}.html`;
+          const lastmod = post.createdDate
+            ? `\n    <lastmod>${new Date(post.createdDate).toISOString()}</lastmod>`
+            : '';
+
+          return `  <url>\n    <loc>${escapeXml(loc)}</loc>${lastmod}\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
+        }),
+      ];
+
+      const sitemap = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        urls.join('\n'),
+        '</urlset>',
+      ].join('\n');
+
+      res.set({
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+      });
+
+      return res.send(sitemap);
+    } catch (error) {
+      console.error('Sitemap generation error:', error);
+      return res.status(500).type('application/xml').send(
+        '<?xml version="1.0" encoding="UTF-8"?><error>Sitemap unavailable</error>'
+      );
+    }
+  }
+);
+
+app.get(
   '/api/posts/:id',
   async (req, res) => {
     try {
@@ -683,21 +732,8 @@ app.get(
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
 
       const title = post.title || 'Rubavu Today';
-      const rawDescription = String(post.description || post.summary || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-      const description = rawDescription.slice(0, 200) || title;
-
-      let imageUrl = post.image || '';
-
-      if (imageUrl && !imageUrl.startsWith('http')) {
-        imageUrl = `${backendUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
-      }
-
-      if (imageUrl && imageUrl.startsWith('http://')) {
-        imageUrl = imageUrl.replace(/^http:\/\//, 'https://');
-      }
-
-      const defaultImage = 'https://rubavutoday.com/Rubavu.jpeg';
-      const ogImage = imageUrl || defaultImage;
+      const description = getArticleDescription(post, title);
+      const ogImage = getArticleImageUrl(post.image, backendUrl);
 
       const canonicalUrl = `${appUrl}/post/${post.id}`;
 
@@ -807,19 +843,10 @@ app.get(
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
       const canonical = new URL(`/${slug}.html`, appUrl).toString();
 
-      let imageUrl = post.image || '';
-      if (imageUrl && !imageUrl.startsWith('http')) {
-        imageUrl = `${backendUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
-      }
-      if (imageUrl && imageUrl.startsWith('http://')) {
-        imageUrl = imageUrl.replace(/^http:\/\//, 'https://');
-      }
-
-      const defaultImage = 'https://rubavutoday.com/Rubavu.jpeg';
-      const ogImage = imageUrl || defaultImage;
+      const ogImage = getArticleImageUrl(post.image, backendUrl);
 
       const title = escapeHtml(post.title || 'Rubavu Today');
-      const description = escapeHtml(String(post.description || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200));
+      const description = escapeHtml(getArticleDescription(post, post.title || 'Rubavu Today'));
       const ogImageEscaped = escapeHtml(ogImage);
       const author = escapeHtml(post.Author || 'Rubavu Today');
       const category = escapeHtml(post.category || '');
@@ -888,6 +915,38 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function escapeXml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function getArticleDescription(post, title) {
+  const rawDescription = String(post.description || post.summary || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return rawDescription.slice(0, 200) || title;
+}
+
+function getArticleImageUrl(image, backendUrl) {
+  const value = String(image || '').trim();
+
+  if (!value) {
+    return 'https://rubavutoday.com/Rubavu.jpeg';
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    return value.replace(/^http:\/\//i, 'https://');
+  }
+
+  return `${backendUrl}${value.startsWith('/') ? '' : '/'}${value}`;
 }
 
 /* =========================================================
@@ -1765,7 +1824,7 @@ app.put(
         }
       }
 
-const incomingTitle = title !== undefined && String(title).trim()
+      const incomingTitle = title !== undefined && String(title).trim()
         ? String(title).trim()
         : existing.title;
 
@@ -4090,7 +4149,7 @@ async function startServer() {
     const server =
       app.listen(
         port,
-        '0.0.0.0', 
+        '0.0.0.0',
         () => {
           console.log(
             `Backend server is running on port ${port}`
