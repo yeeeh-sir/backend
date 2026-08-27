@@ -731,18 +731,23 @@ app.get(
       const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://rubavutoday.com';
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
 
-      const title = post.title || 'Rubavu Today';
-      const description = getArticleDescription(post, title);
-      const ogImage = getArticleImageUrl(post.image, backendUrl);
+      const rawTitle = post.title || 'Rubavu Today';
+      const rawDescription = getArticleDescription(post, rawTitle);
+      const ogImage = getArticleImageUrl(
+        post.image || post.image_url || post.imageUrl || post.featured_image,
+        backendUrl
+      );
 
-      const canonicalUrl = `${appUrl}/post/${post.id}`;
+      const canonicalUrl = post.slug
+        ? `${appUrl}/${post.slug}.html`
+        : `${appUrl}/post/${post.id}`;
 
       const postDate = post.createdDate || post.created_at || post.createdAt || post.date;
       const publishedTime = postDate ? new Date(postDate).toISOString() : '';
 
       const escaped = {
-        title: escapeHtml(title),
-        description: escapeHtml(description),
+        title: escapeHtml(rawTitle),
+        description: escapeHtml(rawDescription),
         ogImage: escapeHtml(ogImage),
         canonicalUrl: escapeHtml(canonicalUrl),
         author: escapeHtml(post.Author || 'Rubavu Today'),
@@ -770,6 +775,14 @@ app.get(
         `<meta name="twitter:image" content="${escaped.ogImage}" />`,
       ];
 
+      const articleLd = getArticleJsonLd(
+        post,
+        canonicalUrl,
+        ogImage,
+        rawTitle,
+        rawDescription
+      );
+
       if (escaped.publishedTime) {
         metaTags.push(`<meta property="article:published_time" content="${escaped.publishedTime}" />`);
       }
@@ -782,13 +795,16 @@ app.get(
         metaTags.push(`<meta property="article:section" content="${escaped.category}" />`);
       }
 
-      const frontendUrl = `${appUrl}/post/${post.id}`;
+      const frontendUrl = post.slug
+        ? `${appUrl}/${post.slug}.html`
+        : `${appUrl}/post/${post.id}`;
 
       const html = `<!DOCTYPE html>
 <html lang="rw">
 <head>
 <meta charset="utf-8" />
 ${metaTags.join('\n')}
+<script type="application/ld+json">${articleLd}</script>
 </head>
 <body>
 <p>Redirecting to article...</p>
@@ -844,7 +860,10 @@ app.get(
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
       const canonical = new URL(`/${slug}.html`, appUrl).toString();
 
-      const ogImage = getArticleImageUrl(post.image, backendUrl);
+      const ogImage = getArticleImageUrl(
+        post.image || post.image_url || post.imageUrl || post.featured_image,
+        backendUrl
+      );
 
       const title = escapeHtml(post.title || 'Rubavu Today');
       const description = escapeHtml(getArticleDescription(post, post.title || 'Rubavu Today'));
@@ -873,6 +892,14 @@ app.get(
         `<meta name="twitter:image" content="${ogImageEscaped}" />`,
       ];
 
+      const articleLd = getArticleJsonLd(
+        post,
+        canonical,
+        ogImage,
+        post.title || 'Rubavu Today',
+        getArticleDescription(post, post.title || 'Rubavu Today')
+      );
+
       if (publishedTime) {
         metaTags.push(`<meta property="article:published_time" content="${escapeHtml(publishedTime)}" />`);
       }
@@ -888,6 +915,7 @@ app.get(
 <head>
 <meta charset="utf-8" />
 ${metaTags.join('\n')}
+<script type="application/ld+json">${articleLd}</script>
 </head>
 <body>
 <p>Redirecting to article...</p>
@@ -917,6 +945,41 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function getArticleJsonLd(post, canonicalUrl, image, title, description) {
+  const postDate = post.createdDate || post.created_at || post.createdAt || post.date;
+  const modifiedDate = post.updatedDate || post.updated_at || post.updatedAt || postDate;
+  const publishedTime = postDate ? new Date(postDate).toISOString() : undefined;
+  const modifiedTime = modifiedDate ? new Date(modifiedDate).toISOString() : undefined;
+
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'NewsArticle',
+    headline: title,
+    description,
+    image: [image],
+    url: canonicalUrl,
+    ...(publishedTime ? { datePublished: publishedTime } : {}),
+    ...(modifiedTime ? { dateModified: modifiedTime } : {}),
+    author: {
+      '@type': 'Person',
+      name: post.Author || post.author || post.author_name || 'Rubavu Today',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Rubavu Today',
+      url: 'https://rubavutoday.com/',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://rubavutoday.com/Rubavu.jpeg',
+      },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': canonicalUrl,
+    },
+  }).replace(/</g, '\\u003c');
 }
 
 function escapeXml(value) {
