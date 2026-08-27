@@ -211,6 +211,11 @@ const upload = multer({
 ========================================================= */
 
 function uploadToCloudinary(buffer, folder = 'rubavu-today') {
+  console.log('[cloudinary] BEFORE upload UTC:', new Date().toISOString());
+  console.log('[cloudinary] BEFORE upload epoch:', Math.floor(Date.now() / 1000));
+  console.log('[cloudinary] SDK version:', require('cloudinary/package.json').version);
+  console.log('[cloudinary] cloud_name:', cloudinary.config().cloud_name);
+
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
@@ -4085,7 +4090,7 @@ async function startServer() {
     const server =
       app.listen(
         port,
-        '0.0.0.0',
+        '0.0.0.0', 
         () => {
           console.log(
             `Backend server is running on port ${port}`
