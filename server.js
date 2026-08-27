@@ -760,6 +760,7 @@ app.get(
         `<meta property="og:title" content="${escaped.title}" />`,
         `<meta property="og:description" content="${escaped.description}" />`,
         `<meta property="og:image" content="${escaped.ogImage}" />`,
+        `<meta property="og:image:alt" content="${escaped.title}" />`,
         `<meta property="og:url" content="${escaped.canonicalUrl}" />`,
         `<meta property="og:site_name" content="Rubavu Today" />`,
 
@@ -784,7 +785,7 @@ app.get(
       const frontendUrl = `${appUrl}/post/${post.id}`;
 
       const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="rw">
 <head>
 <meta charset="utf-8" />
 ${metaTags.join('\n')}
@@ -863,6 +864,7 @@ app.get(
         `<meta property="og:title" content="${title}" />`,
         `<meta property="og:description" content="${description}" />`,
         `<meta property="og:image" content="${ogImageEscaped}" />`,
+        `<meta property="og:image:alt" content="${title}" />`,
         `<meta property="og:url" content="${escapeHtml(canonical)}" />`,
         `<meta property="og:site_name" content="Rubavu Today" />`,
         `<meta name="twitter:card" content="summary_large_image" />`,
@@ -882,7 +884,7 @@ app.get(
       }
 
       const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="rw">
 <head>
 <meta charset="utf-8" />
 ${metaTags.join('\n')}
