@@ -863,6 +863,7 @@ async function init() {
       email VARCHAR(150) NOT NULL UNIQUE,
       phone VARCHAR(20) DEFAULT NULL,
       password VARCHAR(255) NOT NULL,
+      status VARCHAR(20) DEFAULT 'active',
       authToken VARCHAR(128) DEFAULT NULL,
       resetToken VARCHAR(128) DEFAULT NULL,
       resetExpires DATETIME DEFAULT NULL,
@@ -879,19 +880,19 @@ async function init() {
   ======================================================= */
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS chief_editors (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      full_name VARCHAR(100) NOT NULL,
-      email VARCHAR(150) NOT NULL UNIQUE,
-      phone VARCHAR(20) DEFAULT NULL,
-      password VARCHAR(255) NOT NULL,
-      status VARCHAR(20) DEFAULT 'active',
-      authToken VARCHAR(128) DEFAULT NULL,
-      resetToken VARCHAR(128) DEFAULT NULL,
-      resetExpires DATETIME DEFAULT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    CREATE TABLE IF NOT EXISTS chief_editors(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    phone VARCHAR(20) DEFAULT NULL,
+    password VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    authToken VARCHAR(128) DEFAULT NULL,
+    resetToken VARCHAR(128) DEFAULT NULL,
+    resetExpires DATETIME DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+    `);
 
   console.log(
     "[database] chief_editors table ready."
@@ -902,7 +903,7 @@ async function init() {
   ======================================================= */
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS employees (
+    CREATE TABLE IF NOT EXISTS employees(
       id INT AUTO_INCREMENT PRIMARY KEY,
       full_name VARCHAR(100) NOT NULL,
       email VARCHAR(150) NOT NULL UNIQUE,
@@ -915,7 +916,7 @@ async function init() {
       resetExpires DATETIME DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+    `);
 
   console.log(
     "[database] employees table ready."
@@ -926,7 +927,7 @@ async function init() {
   ======================================================= */
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS comments (
+    CREATE TABLE IF NOT EXISTS comments(
       id INT AUTO_INCREMENT PRIMARY KEY,
       post_id INT NOT NULL,
       name VARCHAR(100) NOT NULL,
@@ -938,11 +939,11 @@ async function init() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
       CONSTRAINT fk_comments_post
-      FOREIGN KEY (post_id)
+      FOREIGN KEY(post_id)
       REFERENCES posts(id)
       ON DELETE CASCADE
     )
-  `);
+    `);
 
   console.log(
     "[database] comments table ready."
@@ -953,7 +954,7 @@ async function init() {
   ======================================================= */
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS advertisements (
+    CREATE TABLE IF NOT EXISTS advertisements(
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       image VARCHAR(500) DEFAULT NULL,
@@ -966,7 +967,7 @@ async function init() {
       description TEXT DEFAULT NULL,
       target_url VARCHAR(500) DEFAULT NULL
     )
-  `);
+    `);
 
   console.log(
     "[database] advertisements table ready."
@@ -1027,6 +1028,40 @@ async function init() {
         `posts.${column}`,
         `
           ALTER TABLE posts
+          ADD COLUMN \`${column}\`
+          ${definition}
+        `
+      );
+    }
+  }
+
+  /* =======================================================
+     EMPLOYEE MIGRATIONS
+  ======================================================= */
+
+  const adminColumns = [
+    [
+      "status",
+      "VARCHAR(20) DEFAULT 'active'",
+    ],
+  ];
+
+  for (
+    const [
+      column,
+      definition,
+    ] of adminColumns
+  ) {
+    if (
+      !(await columnExists(
+        "admins",
+        column
+      ))
+    ) {
+      await safeAlter(
+        `admins.${column}`,
+        `
+          ALTER TABLE admins
           ADD COLUMN \`${column}\`
           ${definition}
         `
