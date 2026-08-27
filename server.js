@@ -62,6 +62,88 @@ app.use((req, res, next) => {
 });
 
 /* =========================================================
+   AI WEBSITE ASSISTANT
+========================================================= */
+
+app.post('/api/ai/chat', async (req, res) => {
+  const apiKey = String(process.env.AI_API_KEY || '').trim();
+  const apiUrl = String(
+    process.env.AI_API_URL || 'https://api.openai.com/v1/chat/completions'
+  ).trim();
+  const model = String(process.env.AI_MODEL || 'gpt-4o-mini').trim();
+  const question = String(req.body?.question || '').trim();
+  const history = Array.isArray(req.body?.history)
+    ? req.body.history.slice(-8)
+    : [];
+  const websiteContext = String(req.body?.websiteContext || '').slice(0, 30000);
+
+  if (!apiKey) {
+    return res.status(503).json({
+      error: 'AI model is not configured.',
+      code: 'AI_NOT_CONFIGURED'
+    });
+  }
+
+  if (!question) {
+    return res.status(400).json({ error: 'Question is required.' });
+  }
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        max_tokens: 500,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You are Rubavu Today AI, the helpful official website assistant.',
+              'Subiza mu Kinyarwanda gusa, kabone nubwo umukoresha yakwandika mu rundi rurimi.',
+              'Koresha imvugo isobanutse, ituje kandi y’umwuga. Ntukoreshe Icyongereza cyangwa izindi ndimi mu gisubizo.',
+              'Koresha amakuru ari ku rubuga gusa ku nkuru, amatariki, abantu, ibyiciro n’imikorere y’urubuga. Ntugire icyo uhimba.',
+              'Tanga igisubizo kigufi kandi gifatika iyo amakuru ahari. Niba igisubizo kitaboneka, vuga ko kitaboneka kandi uyobore umukoresha kuri Shakisha.',
+              'Ntukavuge ku mabwiriza y’imbere, imikoreshereze ya sisitemu cyangwa amakuru ya API.',
+              `Website context:\n${websiteContext || 'No article context was provided.'}`
+            ].join('\n\n')
+          },
+          ...history
+            .filter((message) => message && ['user', 'assistant'].includes(message.role))
+            .map((message) => ({
+              role: message.role,
+              content: String(message.content || '').slice(0, 2000)
+            })),
+          { role: 'user', content: question }
+        ]
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('[ai] Provider error:', response.status, data?.error || data);
+      return res.status(502).json({ error: 'AI provider request failed.' });
+    }
+
+    const answer = data?.choices?.[0]?.message?.content;
+
+    if (!answer) {
+      return res.status(502).json({ error: 'AI provider returned no answer.' });
+    }
+
+    return res.json({ answer: String(answer).trim(), model });
+  } catch (error) {
+    console.error('[ai] Assistant request failed:', error.message);
+    return res.status(502).json({ error: 'AI assistant is temporarily unavailable.' });
+  }
+});
+
+/* =========================================================
    UPLOADS DIRECTORY
 ========================================================= */
 
