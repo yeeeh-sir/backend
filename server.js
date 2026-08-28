@@ -824,6 +824,16 @@ app.get(
         ? `${appUrl}/${post.slug}.html`
         : `${appUrl}/post/${post.id}`;
 
+      // Serve metadata to social crawlers; redirect real human
+      // visitors to the React SPA route so they never see the bot
+      // page or hit a redirect loop on a proxied .html URL.
+      if (!isSocialCrawler(req)) {
+        return res.redirect(
+          302,
+          `${appUrl}/post/${post.id}`
+        );
+      }
+
       const postDate = post.createdDate || post.created_at || post.createdAt || post.date;
       const publishedTime = postDate ? new Date(postDate).toISOString() : '';
 
@@ -842,6 +852,8 @@ app.get(
         `<meta name="description" content="${escaped.description}" />`,
         `<meta name="robots" content="index, follow" />`,
         `<link rel="canonical" href="${escaped.canonicalUrl}" />`,
+        `<link rel="icon" type="image/jpeg" href="https://rubavutoday.com/favicon.jpg" />`,
+        `<link rel="apple-touch-icon" href="https://rubavutoday.com/favicon.jpg" />`,
 
         `<meta property="og:type" content="article" />`,
         `<meta property="og:title" content="${escaped.title}" />`,
@@ -944,6 +956,16 @@ app.get(
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
       const canonical = new URL(`/${slug}.html`, appUrl).toString();
 
+      // Serve the metadata page to social crawlers, but let real
+      // human visitors reach the React app without hitting a redirect
+      // loop (the frontend host proxies .html routes to this backend).
+      if (!isSocialCrawler(req)) {
+        return res.redirect(
+          302,
+          `${appUrl}/post/${post.id}`
+        );
+      }
+
       const ogImage = getArticleImageUrl(
         post.image || post.image_url || post.imageUrl || post.featured_image,
         backendUrl
@@ -963,6 +985,8 @@ app.get(
         `<meta name="description" content="${description}" />`,
         `<meta name="robots" content="index, follow" />`,
         `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
+        `<link rel="icon" type="image/jpeg" href="https://rubavutoday.com/favicon.jpg" />`,
+        `<link rel="apple-touch-icon" href="https://rubavutoday.com/favicon.jpg" />`,
         `<meta property="og:type" content="article" />`,
         `<meta property="og:title" content="${title}" />`,
         `<meta property="og:description" content="${description}" />`,
@@ -1029,6 +1053,17 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function isSocialCrawler(req) {
+  const ua = String(
+    req.headers['user-agent'] || ''
+  );
+  if (!ua) return false;
+
+  return /(whatsapp|facebookexternalhit|facebot|twitterbot|telegrambot|slackbot|discordbot|linkedinbot|pinterest|tumblr|skypeuripreview|snapchat|line-poker|viber|wechat|applebot|redditbot|baiduspider|googlebot|bingbot|duckduckbot|yandex|msnbot|ia_archiver|curl|wget|python-requests)/i.test(
+    ua
+  );
 }
 
 function getArticleJsonLd(post, canonicalUrl, image, title, description) {
