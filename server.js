@@ -2221,9 +2221,13 @@ app.get(
             GROUP BY c.id
             ORDER BY c.created_at ASC
           `,
-          [deviceId, req.params.postId]
-        );
+            [deviceId, req.params.postId]
+          );
 
+      res.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate'
+      );
       res.json(rows);
 
     } catch (error) {
@@ -2491,74 +2495,6 @@ app.delete(
       res.status(500).json({
         error:
           'Unable to delete comment.'
-      });
-    }
-  }
-);
-
-app.put(
-  '/api/comments/:id/like',
-  async (req, res) => {
-    try {
-      const {
-        id
-      } = req.params;
-
-      const liked = Boolean(
-        req.body &&
-        req.body.liked
-      );
-
-      const pool =
-        getPool();
-
-      const [existing] =
-        await pool.query(
-          `
-            SELECT id, likes
-            FROM comments
-            WHERE id = ?
-          `,
-          [id]
-        );
-
-      if (!existing.length) {
-        return res.status(404).json({
-          error:
-            'Comment not found.'
-        });
-      }
-
-      const newLikes =
-        Math.max(
-          0,
-          (existing[0].likes ||
-            0) +
-            (liked ? 1 : -1)
-        );
-
-      await pool.execute(
-        `
-          UPDATE comments
-          SET likes = ?
-          WHERE id = ?
-        `,
-        [newLikes, id]
-      );
-
-      res.json({
-        likes: newLikes
-      });
-
-    } catch (error) {
-      console.error(
-        'Toggle comment like error:',
-        error
-      );
-
-      res.status(500).json({
-        error:
-          'Unable to update like.'
       });
     }
   }
