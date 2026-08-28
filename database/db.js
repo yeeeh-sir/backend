@@ -949,6 +949,27 @@ async function init() {
     "[database] comments table ready."
   );
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS comment_reactions(
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      comment_id INT NOT NULL,
+      device_id VARCHAR(64) NOT NULL,
+      reaction ENUM('like','dislike') DEFAULT 'like',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+      UNIQUE KEY uq_comment_device (comment_id, device_id),
+
+      CONSTRAINT fk_reaction_comment
+      FOREIGN KEY(comment_id)
+      REFERENCES comments(id)
+      ON DELETE CASCADE
+    )
+  `);
+
+  console.log(
+    "[database] comment_reactions table ready."
+  );
+
   /* =======================================================
      ADVERTISEMENTS
   ======================================================= */

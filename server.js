@@ -847,6 +847,7 @@ app.get(
         `<meta property="og:title" content="${escaped.title}" />`,
         `<meta property="og:description" content="${escaped.description}" />`,
         `<meta property="og:image" content="${escaped.ogImage}" />`,
+        `<meta property="og:image:secure_url" content="${escaped.ogImage}" />`,
         `<meta property="og:image:alt" content="${escaped.title}" />`,
         `<meta property="og:url" content="${escaped.canonicalUrl}" />`,
         `<meta property="og:site_name" content="Rubavu Today" />`,
@@ -855,6 +856,7 @@ app.get(
         `<meta name="twitter:title" content="${escaped.title}" />`,
         `<meta name="twitter:description" content="${escaped.description}" />`,
         `<meta name="twitter:image" content="${escaped.ogImage}" />`,
+        `<meta name="twitter:image:alt" content="${escaped.title}" />`,
       ];
 
       const articleLd = getArticleJsonLd(
@@ -2182,15 +2184,44 @@ app.get(
   '/api/comments/:postId',
   async (req, res) => {
     try {
+      const deviceId =
+        String(
+          req.query.device_id ||
+            ''
+        ).slice(0, 64) || null;
+
       const [rows] =
         await getPool().query(
           `
-            SELECT *
-            FROM comments
-            WHERE post_id = ?
-            ORDER BY created_at ASC
+            SELECT
+              c.*,
+              COUNT(
+                CASE
+                  WHEN r.reaction = 'like'
+                  THEN 1
+                END
+              ) AS likes,
+              COUNT(
+                CASE
+                  WHEN r.reaction =
+                    'dislike'
+                  THEN 1
+                END
+              ) AS dislikes,
+              MAX(
+                CASE
+                  WHEN r.device_id = ?
+                  THEN r.reaction
+                END
+              ) AS my_reaction
+            FROM comments c
+            LEFT JOIN comment_reactions r
+              ON r.comment_id = c.id
+            WHERE c.post_id = ?
+            GROUP BY c.id
+            ORDER BY c.created_at ASC
           `,
-          [req.params.postId]
+          [deviceId, req.params.postId]
         );
 
       res.json(rows);
@@ -2204,6 +2235,132 @@ app.get(
       res.status(500).json({
         error:
           'Unable to fetch comments.'
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/comments/:id/reaction',
+  async (req, res) => {
+    try {
+      const {
+        id
+      } = req.params;
+
+      const deviceId = String(
+        req.body?.device_id || ''
+      ).slice(0, 64);
+
+      const action = String(
+        req.body?.action || 'none'
+      );
+
+      if (!deviceId) {
+        return res.status(400).json({
+          error:
+            'Device ID is required.'
+        });
+      }
+
+      if (
+        action !== 'like' &&
+        action !== 'dislike' &&
+        action !== 'none'
+      ) {
+        return res.status(400).json({
+          error:
+            'Invalid action.'
+        });
+      }
+
+      const pool =
+        getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id
+            FROM comments
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error:
+            'Comment not found.'
+        });
+      }
+
+      if (action === 'none') {
+        await pool.execute(
+          `
+            DELETE FROM comment_reactions
+            WHERE comment_id = ?
+              AND device_id = ?
+          `,
+          [id, deviceId]
+        );
+      } else {
+        await pool.execute(
+          `
+            INSERT INTO comment_reactions
+              (comment_id, device_id, reaction)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              reaction = VALUES(reaction)
+          `,
+          [id, deviceId, action]
+        );
+      }
+
+      const [counts] =
+        await pool.query(
+          `
+            SELECT
+              COUNT(
+                CASE
+                  WHEN reaction = 'like'
+                  THEN 1
+                END
+              ) AS likes,
+              COUNT(
+                CASE
+                  WHEN reaction = 'dislike'
+                  THEN 1
+                END
+              ) AS dislikes,
+              MAX(
+                CASE
+                  WHEN device_id = ?
+                  THEN reaction
+                END
+              ) AS my_reaction
+            FROM comment_reactions
+            WHERE comment_id = ?
+          `,
+          [deviceId, id]
+        );
+
+      res.json({
+        likes: counts[0].likes || 0,
+        dislikes: counts[0].dislikes || 0,
+        my_reaction:
+          counts[0].my_reaction || null
+      });
+
+    } catch (error) {
+      console.error(
+        'Set comment reaction error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          error.message ||
+          'Unable to update reaction.'
       });
     }
   }
@@ -2334,6 +2491,74 @@ app.delete(
       res.status(500).json({
         error:
           'Unable to delete comment.'
+      });
+    }
+  }
+);
+
+app.put(
+  '/api/comments/:id/like',
+  async (req, res) => {
+    try {
+      const {
+        id
+      } = req.params;
+
+      const liked = Boolean(
+        req.body &&
+        req.body.liked
+      );
+
+      const pool =
+        getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id, likes
+            FROM comments
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error:
+            'Comment not found.'
+        });
+      }
+
+      const newLikes =
+        Math.max(
+          0,
+          (existing[0].likes ||
+            0) +
+            (liked ? 1 : -1)
+        );
+
+      await pool.execute(
+        `
+          UPDATE comments
+          SET likes = ?
+          WHERE id = ?
+        `,
+        [newLikes, id]
+      );
+
+      res.json({
+        likes: newLikes
+      });
+
+    } catch (error) {
+      console.error(
+        'Toggle comment like error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to update like.'
       });
     }
   }
