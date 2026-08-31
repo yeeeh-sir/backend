@@ -172,9 +172,130 @@ function isSslEnabledForRemoteDatabase() {
   return isTruthy(process.env.DB_SSL);
 }
 
+/* Production detection: the primary signal is NODE_ENV=production, but it can
+   also be overridden explicitly via DB_ENV=production (useful on platforms that
+   do not automatically set NODE_ENV). In production we refuse to run with
+   unverified TLS, which is what makes certificate verification mandatory. */
+function isProduction() {
+  const nodeEnv = String(process.env.NODE_ENV || "")
+    .trim()
+    .toLowerCase();
+
+  const dbEnv = String(process.env.DB_ENV || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    nodeEnv === "production" ||
+    dbEnv === "production"
+  );
+}
+
+/* Whether the operator explicitly allowed unverified TLS through
+   DB_SSL_REJECT_UNAUTHORIZED=0/false. Only honoured outside production. */
+function allowUnverifiedTls() {
+  const rejectUnauthorized = String(
+    process.env.DB_SSL_REJECT_UNAUTHORIZED ?? "true"
+  )
+    .trim()
+    .toLowerCase();
+
+  return ["0", "false", "no", "off"].includes(
+    rejectUnauthorized
+  );
+}
+
+/* Clear, actionable error when verified TLS cannot be configured. */
+function missingCaError(message) {
+  return new Error(
+    "[database] " +
+      message +
+      "\n" +
+      "  To enable verified TLS for the remote database, provide the server's " +
+      "CA certificate PEM:\n" +
+      "    - DB_SSL_CA_FILE=/path/to/ca-certificate.pem (preferred, reads via fs), or\n" +
+      "    - DB_SSL_CA='-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----' (inline)\n" +
+      "  Both are read from the environment at startup; nothing is hard-coded.\n" +
+      "  Do NOT set DB_SSL_REJECT_UNAUTHORIZED=false in production."
+  );
+}
+
 /* =========================================================
    DATABASE CONNECTION CONFIG
 ========================================================= */
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTransientRetry(connectionPool) {
+  if (!connectionPool || typeof connectionPool !== 'object') {
+    return connectionPool;
+  }
+
+  const retryableCodes = new Set([
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'PROTOCOL_CONNECTION_LOST',
+    'ER_SERVER_SHUTDOWN',
+    'EPIPE',
+    'ECONNREFUSED',
+    'ERR_SOCKET_CLOSED',
+    /* Transient name-resolution / reachability failures. These occur when the
+       host resolver briefly cannot resolve the Aiven hostname or the network is
+       momentarily down (getaddrinfo ENOTFOUND / EAI_AGAIN). Retrying once gives
+       DNS/network a chance to recover instead of failing the query immediately. */
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+    'EADDRNOTAVAIL',
+  ]);
+
+  const wrapMethod = (method, methodName) => (...args) => {
+    let attempt = 0;
+
+    const execute = async () => {
+      try {
+        return await method(...args);
+      } catch (error) {
+        const errorCode = error && error.code;
+
+        if (attempt >= 2 || !retryableCodes.has(errorCode)) {
+          throw error;
+        }
+
+        attempt += 1;
+
+        console.warn(
+          `[database] ${methodName} failed with ${errorCode}. Retrying (${attempt}/2) after ${attempt * 500}ms...`
+        );
+
+        await wait(500 * attempt);
+        return execute();
+      }
+    };
+
+    return execute();
+  };
+
+  connectionPool.query = wrapMethod(connectionPool.query.bind(connectionPool), 'query');
+  connectionPool.execute = wrapMethod(connectionPool.execute.bind(connectionPool), 'execute');
+
+  connectionPool.on('error', (error) => {
+    const errorCode = error && error.code;
+
+    if (retryableCodes.has(errorCode)) {
+      console.warn(
+        `[database] Pool error detected (${errorCode}). Marking pool stale for reconnect.`
+      );
+
+      pool = null;
+    }
+  });
+
+  return connectionPool;
+}
 
 function getConnectionConfig(
   useVerifiedSsl = true
@@ -274,58 +395,97 @@ function getConnectionConfig(
     return config;
   }
 
+  const production =
+    isProduction();
+
   const ca =
     getCaCertificate();
 
-  const rejectUnauthorizedValue =
-    String(
-      process.env.DB_SSL_REJECT_UNAUTHORIZED ?? "true"
-    )
-      .trim()
-      .toLowerCase();
+  const allowUnverified =
+    allowUnverifiedTls();
 
-  const allowUnverifiedTls =
-    ["0", "false", "no", "off"].includes(
-      rejectUnauthorizedValue
-    );
-
-  if (
-    useVerifiedSsl &&
-    ca &&
-    !allowUnverifiedTls
-  ) {
+  /* -------------------------------------------------------
+     VERIFIED TLS WITH CA CERTIFICATE
+  ------------------------------------------------------- */
+  if (ca && useVerifiedSsl && !allowUnverified) {
     config.ssl = {
       ca,
       rejectUnauthorized: true,
     };
 
     console.log(
-      "[database] Remote database detected: SSL enabled with certificate verification using the Aiven CA."
+      "[database] Remote database TLS enabled with certificate verification (CA loaded)."
     );
 
     return config;
   }
 
-  if (ca) {
+  /* -------------------------------------------------------
+     CA PRESENT BUT UNVERIFIED EXPLICITLY REQUESTED (DEV ONLY)
+  ------------------------------------------------------- */
+  if (ca && allowUnverified) {
+    if (production) {
+      throw missingCaError(
+        "DB_SSL_REJECT_UNAUTHORIZED is disabled but the environment is production. " +
+          "Refusing to connect without certificate verification. " +
+          "Remove DB_SSL_REJECT_UNAUTHORIZED or set it to true in production."
+      );
+    }
+
     config.ssl = {
       ca,
       rejectUnauthorized: false,
     };
 
     console.warn(
-      "[database] Remote database TLS is enabled, but certificate verification is disabled. This usually means the Aiven certificate chain is not trusted by the Node.js runtime (for example, a self-signed CA or incomplete certificate chain). The connection remains encrypted, but verification is intentionally off."
+      "[database] Remote database TLS enabled, but certificate verification is disabled via DB_SSL_REJECT_UNAUTHORIZED (development only)."
     );
 
     return config;
   }
 
-  config.ssl = {
-    rejectUnauthorized: false,
-  };
+  /* -------------------------------------------------------
+     NO CA PROVIDED
+  ------------------------------------------------------- */
+  if (!ca) {
+    if (production) {
+      throw missingCaError(
+        "Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided, " +
+          "so certificate verification cannot be enabled. Refusing to connect without verified TLS."
+      );
+    }
 
-  console.warn(
-    "[database] Remote database TLS is enabled, but no valid DB_SSL_CA was provided. The connection will use encrypted TLS without certificate verification."
-  );
+    if (!useVerifiedSsl) {
+      /* Second pass (dev fallback) or explicit dev override: encrypted without
+         verification. Never allowed in production (handled above). */
+      config.ssl = {
+        rejectUnauthorized: false,
+      };
+
+      console.warn(
+        "[database] Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided. " +
+          "Falling back to encrypted TLS WITHOUT certificate verification. Development only — " +
+          "configure DB_SSL_CA or DB_SSL_CA_FILE before deploying."
+      );
+
+      return config;
+    }
+
+    /* First pass with no CA: the caller (createDatabasePool) retries with
+       useVerifiedSsl=false for a dev-only fallback. In production that retry
+       will throw above. */
+    config.ssl = {
+      rejectUnauthorized: false,
+    };
+
+    console.warn(
+      "[database] Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided yet. " +
+        "Will attempt verified TLS if a CA is configured; otherwise development-only fallback will be used. " +
+        "In production this is a hard error."
+    );
+
+    return config;
+  }
 
   return config;
 }
@@ -357,10 +517,11 @@ async function createDatabasePool() {
     }`
   );
 
-  let testPool =
+  let testPool = withTransientRetry(
     mysql.createPool(
       verifiedConfig
-    );
+    )
+  );
 
   /* -------------------------------------------------------
      TEST VERIFIED CONNECTION
@@ -424,8 +585,21 @@ async function createDatabasePool() {
       throw error;
     }
 
+    /* In production we never silently downgrade to unverified TLS. The CA may
+       be misconfigured or the supplied certificate chain is untrusted — surface
+       a clear configuration error instead of connecting insecurely. */
+    if (isProduction()) {
+      throw missingCaError(
+        "Verified TLS connection failed with a certificate/TLS error (" +
+          error.code +
+          "), but the environment is production. " +
+          "Refusing to fall back to unverified TLS. Check that DB_SSL_CA / DB_SSL_CA_FILE " +
+          "contains the correct CA certificate chain for the database host."
+      );
+    }
+
     console.warn(
-      "[database] Falling back to encrypted TLS without certificate verification..."
+      "[database] Falling back to encrypted TLS without certificate verification (development only)..."
     );
   }
 
@@ -440,10 +614,11 @@ async function createDatabasePool() {
     "[database] Creating fallback SSL connection."
   );
 
-  testPool =
+  testPool = withTransientRetry(
     mysql.createPool(
       fallbackConfig
-    );
+    )
+  );
 
   try {
     const connection =
@@ -656,23 +831,32 @@ async function columnExists(
 ========================================================= */
 
 async function ensureDefaultAdmin() {
+  /* No hard-coded default accounts. An initial admin is only created when the
+     operator explicitly supplies ADMIN_EMAIL / ADMIN_PASSWORD in the .env. */
+  const email = String(
+    process.env.ADMIN_EMAIL || ""
+  ).trim();
+
+  const password =
+    process.env.ADMIN_PASSWORD || "";
+
+  if (!email || !password) {
+    console.log(
+      "[admin] Skipping default admin creation: no ADMIN_EMAIL / ADMIN_PASSWORD configured."
+    );
+
+    return;
+  }
+
+  const name =
+    process.env.ADMIN_NAME ||
+    "Admin";
+
+  const phone =
+    process.env.ADMIN_PHONE ||
+    "";
+
   try {
-    const email =
-      process.env.ADMIN_EMAIL ||
-      "papainnocent2026@gmail.com";
-
-    const password =
-      process.env.ADMIN_PASSWORD ||
-      "papainnocent@@2026";
-
-    const name =
-      process.env.ADMIN_NAME ||
-      "Admin";
-
-    const phone =
-      process.env.ADMIN_PHONE ||
-      "";
-
     const [rows] =
       await pool.query(
         `
@@ -686,7 +870,7 @@ async function ensureDefaultAdmin() {
 
     if (rows.length > 0) {
       console.log(
-        `[admin] Default admin already exists: ${email}`
+        `[admin] Initial admin already exists: ${email}`
       );
 
       return;
@@ -718,89 +902,11 @@ async function ensureDefaultAdmin() {
     );
 
     console.log(
-      `[admin] Default admin created: ${email}`
+      `[admin] Initial admin created: ${email}`
     );
   } catch (error) {
     console.error(
-      "[admin] Failed to create default admin:",
-      error.message
-    );
-  }
-}
-
-/* =========================================================
-   DEFAULT CHIEF EDITOR
-========================================================= */
-
-async function ensureDefaultChiefEditor() {
-  try {
-    const email =
-      process.env.CHIEF_EDITOR_EMAIL ||
-      "editor@rubavu.today";
-
-    const password =
-      process.env.CHIEF_EDITOR_PASSWORD ||
-      "Editor@123";
-
-    const name =
-      process.env.CHIEF_EDITOR_NAME ||
-      "Chief Editor";
-
-    const phone =
-      process.env.CHIEF_EDITOR_PHONE ||
-      "";
-
-    const [rows] =
-      await pool.query(
-        `
-          SELECT id
-          FROM chief_editors
-          WHERE email = ?
-          LIMIT 1
-        `,
-        [email]
-      );
-
-    if (rows.length > 0) {
-      console.log(
-        `[chief-editor] Default Chief Editor already exists: ${email}`
-      );
-
-      return;
-    }
-
-    const hashedPassword =
-      hashPassword(password);
-
-    await pool.execute(
-      `
-        INSERT INTO chief_editors
-        (
-          full_name,
-          email,
-          phone,
-          password,
-          status,
-          authToken,
-          resetToken,
-          resetExpires
-        )
-        VALUES (?, ?, ?, ?, 'active', NULL, NULL, NULL)
-      `,
-      [
-        name,
-        email,
-        phone,
-        hashedPassword,
-      ]
-    );
-
-    console.log(
-      `[chief-editor] Default Chief Editor created: ${email}`
-    );
-  } catch (error) {
-    console.error(
-      "[chief-editor] Failed to create default Chief Editor:",
+      "[admin] Failed to create initial admin:",
       error.message
     );
   }
@@ -992,6 +1098,27 @@ async function init() {
 
   console.log(
     "[database] advertisements table ready."
+  );
+
+  /* =======================================================
+     TRANSLATIONS (persistent translation cache)
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS translations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      source_hash CHAR(64) NOT NULL,
+      source_text MEDIUMTEXT NOT NULL,
+      source_lang VARCHAR(10) DEFAULT 'rw',
+      target_lang VARCHAR(10) NOT NULL,
+      translated_text MEDIUMTEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_translation (source_hash, source_lang, target_lang)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  console.log(
+    "[database] translations table ready."
   );
 
   /* =======================================================
@@ -1484,12 +1611,6 @@ async function init() {
   ======================================================= */
 
   await ensureDefaultAdmin();
-
-  /* =======================================================
-     DEFAULT CHIEF EDITOR
-  ======================================================= */
-
-  await ensureDefaultChiefEditor();
 
   /* =======================================================
      COMPLETE
