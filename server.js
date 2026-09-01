@@ -560,7 +560,7 @@ function withLanguageLock(langKey, fn) {
   const previous = translateMutex[langKey] || Promise.resolve();
 
   const task = previous
-    .catch(() => {})
+    .catch(() => { })
     .then(fn)
     .finally(() => {
       /* No-op; the task itself is the chain tail. Kept for clarity. */
@@ -2604,14 +2604,14 @@ app.post(
 
       const featuredFile =
         req.files &&
-        req.files.image &&
-        req.files.image[0]
+          req.files.image &&
+          req.files.image[0]
           ? req.files.image[0]
           : null;
 
       const galleryFiles =
         req.files &&
-        req.files.images
+          req.files.images
           ? req.files.images
           : [];
 
@@ -2853,6 +2853,11 @@ app.put(
         author
       } = req.body;
 
+      const userRole =
+        String(
+          req.user?.role_type || ''
+        ).trim();
+
       const pool =
         getPool();
 
@@ -2877,8 +2882,7 @@ app.put(
         existingRows[0];
 
       if (
-        req.user.role_type ===
-        'employee'
+        userRole === 'employee'
       ) {
         const employeeName =
           req.user.full_name ||
@@ -2893,6 +2897,16 @@ app.put(
               'You can only edit your own posts.'
           });
         }
+      }
+
+      if (
+        !['admin', 'chief_editor'].includes(userRole) &&
+        userRole !== 'employee'
+      ) {
+        return res.status(403).json({
+          error:
+            'You are not allowed to edit posts.'
+        });
       }
 
       let imageUrl =
@@ -2937,14 +2951,14 @@ app.put(
 
       const featuredFile =
         req.files &&
-        req.files.image &&
-        req.files.image[0]
+          req.files.image &&
+          req.files.image[0]
           ? req.files.image[0]
           : null;
 
       const galleryFiles =
         req.files &&
-        req.files.images
+          req.files.images
           ? req.files.images
           : [];
 
