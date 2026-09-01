@@ -944,6 +944,8 @@ async function init() {
       category VARCHAR(100) NOT NULL,
       description TEXT NOT NULL,
       image VARCHAR(500) DEFAULT NULL,
+      images MEDIUMTEXT DEFAULT NULL,
+      content_blocks MEDIUMTEXT DEFAULT NULL,
       createdDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       youtube_url VARCHAR(500) DEFAULT NULL,
       Author VARCHAR(150) DEFAULT NULL,
@@ -1126,6 +1128,14 @@ async function init() {
   ======================================================= */
 
   const postColumns = [
+    [
+      "content_blocks",
+      "MEDIUMTEXT DEFAULT NULL",
+    ],
+    [
+      "images",
+      "MEDIUMTEXT DEFAULT NULL",
+    ],
     [
       "slug",
       "VARCHAR(500) NULL UNIQUE",

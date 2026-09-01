@@ -881,7 +881,7 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024,
 
-    files: 1
+    files: 12
   }
 });
 
@@ -1006,6 +1006,193 @@ function uploadToCloudinary(buffer, folder = 'rubavu-today') {
 
     Readable.from(buffer).pipe(stream);
   });
+}
+
+function uploadImagesToCloudinary(files, folder = 'rubavu-today/posts') {
+  const list = Array.isArray(files) ? files : [];
+
+  return Promise.all(
+    list.map(async (file) => {
+      if (!file || !file.buffer) {
+        return null;
+      }
+
+      const result = await uploadToCloudinary(file.buffer, folder);
+
+      return result && result.secure_url
+        ? result.secure_url
+        : null;
+    })
+  ).then((urls) =>
+    urls.filter(Boolean)
+  );
+}
+
+const ALLOWED_IMAGE_POSITIONS = new Set([
+  'header',
+  'full',
+  'center',
+  'left',
+  'right',
+  'inline',
+  'gallery',
+]);
+
+const ALLOWED_BLOCK_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'image',
+  'quote',
+  'divider',
+  'video',
+]);
+
+function sanitizeBlock(block) {
+  if (!block || typeof block !== 'object') {
+    return null;
+  }
+
+  if (!ALLOWED_BLOCK_TYPES.has(block.type)) {
+    return null;
+  }
+
+  const clean = {
+    type: block.type,
+  };
+
+  if (block.type === 'paragraph') {
+    clean.text = String(block.text || '').trim().slice(0, 50000);
+
+    if (!clean.text) {
+      return null;
+    }
+  }
+
+  if (block.type === 'heading') {
+    clean.text = String(block.text || '').trim().slice(0, 500);
+
+    if (!clean.text) {
+      return null;
+    }
+  }
+
+  if (block.type === 'quote') {
+    clean.text = String(block.text || '').trim().slice(0, 5000);
+
+    if (!clean.text) {
+      return null;
+    }
+  }
+
+  if (block.type === 'divider') {
+    return { type: 'divider' };
+  }
+
+  if (block.type === 'video') {
+    clean.url = String(block.url || '').trim().slice(0, 2000);
+
+    if (!clean.url) {
+      return null;
+    }
+  }
+
+  if (block.type === 'image') {
+    clean.url = String(block.url || '').trim().slice(0, 2000);
+    clean.position = ALLOWED_IMAGE_POSITIONS.has(block.position)
+      ? block.position
+      : 'center';
+    clean.caption = String(block.caption || '').slice(0, 3000).trim();
+    clean.alt = String(block.alt || '').slice(0, 500).trim();
+    clean.fileKey = String(block.fileKey || '').slice(0, 20);
+    clean.uploadIndex =
+      Number.isInteger(block.uploadIndex) && block.uploadIndex >= 0
+        ? block.uploadIndex
+        : null;
+  }
+
+  return clean;
+}
+
+function sanitizeContentBlocks(raw) {
+  if (!raw) {
+    return null;
+  }
+
+  let list = null;
+
+  try {
+    list = JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+
+  if (!Array.isArray(list)) {
+    return null;
+  }
+
+  const cleaned = list
+    .map(sanitizeBlock)
+    .filter(Boolean)
+    .slice(0, 200);
+
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+function resolveBlockImages(blocks, uploadedUrls) {
+  let nextIndex = 0;
+
+  return blocks.map((block) => {
+    if (block.type !== 'image') {
+      return block;
+    }
+
+    const resolved = { ...block };
+
+    const fileIndex =
+      typeof resolved.uploadIndex === 'number'
+        ? resolved.uploadIndex
+        : null;
+
+    if (fileIndex !== null && uploadedUrls[fileIndex]) {
+      resolved.url = uploadedUrls[fileIndex];
+    }
+
+    delete resolved.fileKey;
+    delete resolved.uploadIndex;
+
+    if (!resolved.url) {
+      return null;
+    }
+
+    nextIndex += 1;
+
+    return resolved;
+  }).filter(Boolean);
+}
+
+function pickHeaderImage(blocks, fallbackUrl) {
+  if (fallbackUrl) {
+    return fallbackUrl;
+  }
+
+  const first = blocks.find(
+    (block) =>
+      block.type === 'image' &&
+      block.position === 'header' &&
+      block.url
+  );
+
+  if (first) {
+    return first.url;
+  }
+
+  const anyImage = blocks.find(
+    (block) =>
+      block.type === 'image' &&
+      block.url
+  );
+
+  return anyImage ? anyImage.url : null;
 }
 
 /* =========================================================
@@ -2382,7 +2569,10 @@ app.put(
 app.post(
   '/api/posts',
   requireAuth,
-  upload.single('image'),
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'images', maxCount: 11 }
+  ]),
   async (req, res) => {
     try {
       const {
@@ -2405,11 +2595,30 @@ app.post(
       }
 
       let imageUrl = null;
+      let images = [];
 
-      if (req.file) {
+      const rawBlocks = sanitizeContentBlocks(req.body.content_blocks);
+      let blocks = rawBlocks
+        ? rawBlocks.map((block) => ({ ...block }))
+        : null;
+
+      const featuredFile =
+        req.files &&
+        req.files.image &&
+        req.files.image[0]
+          ? req.files.image[0]
+          : null;
+
+      const galleryFiles =
+        req.files &&
+        req.files.images
+          ? req.files.images
+          : [];
+
+      if (featuredFile) {
         try {
           const result = await uploadToCloudinary(
-            req.file.buffer,
+            featuredFile.buffer,
             'rubavu-today/posts'
           );
 
@@ -2431,6 +2640,73 @@ app.post(
           });
         }
       }
+
+      const uploadedUrls = [];
+
+      if (galleryFiles.length > 0) {
+        try {
+          for (const file of galleryFiles) {
+            try {
+              const result = await uploadToCloudinary(
+                file.buffer,
+                'rubavu-today/posts'
+              );
+
+              uploadedUrls.push(result.secure_url);
+            } catch (fileError) {
+              console.error(
+                '[cloudinary] One extra post image failed:',
+                fileError
+              );
+
+              uploadedUrls.push(null);
+            }
+          }
+
+          console.log(
+            `[cloudinary] ${uploadedUrls.filter(Boolean).length} extra post images uploaded`
+          );
+
+        } catch (uploadError) {
+          console.error(
+            '[cloudinary] Extra post images upload failed:',
+            uploadError
+          );
+
+          return res.status(500).json({
+            error:
+              'Failed to upload post images to Cloudinary.'
+          });
+        }
+      }
+
+      if (blocks) {
+        blocks = resolveBlockImages(blocks, uploadedUrls);
+
+        images = images.concat(
+          blocks
+            .filter((block) => block.type === 'image' && block.url)
+            .map((block) => block.url)
+        );
+
+        if (!imageUrl) {
+          imageUrl = pickHeaderImage(blocks, null);
+        }
+      } else {
+        images = images.concat(uploadedUrls.filter(Boolean));
+
+        if (!imageUrl && uploadedUrls.length > 0) {
+          imageUrl = uploadedUrls[0];
+        }
+      }
+
+      const imagesJson = images.length > 0
+        ? JSON.stringify(images)
+        : null;
+
+      const blocksJson = blocks && blocks.length > 0
+        ? JSON.stringify(blocks)
+        : null;
 
       const authorName =
         author &&
@@ -2477,6 +2753,8 @@ app.post(
               category,
               description,
               image,
+              images,
+              content_blocks,
               createdDate,
               youtube_url,
               Author,
@@ -2485,7 +2763,7 @@ app.post(
               approved_by,
               approved_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
           `,
           [
             String(title).trim(),
@@ -2493,6 +2771,8 @@ app.post(
             String(category).trim(),
             description,
             imageUrl,
+            imagesJson,
+            blocksJson,
             new Date(),
             youtube_url || null,
             authorName,
@@ -2555,7 +2835,10 @@ app.post(
 app.put(
   '/api/posts/:id',
   requireAuth,
-  upload.single('image'),
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'images', maxCount: 11 }
+  ]),
   async (req, res) => {
     try {
       const {
@@ -2615,10 +2898,60 @@ app.put(
       let imageUrl =
         existing.image;
 
-      if (req.file) {
+      let images = [];
+
+      try {
+        const parsed =
+          existing.images
+            ? JSON.parse(existing.images)
+            : [];
+
+        images = Array.isArray(parsed)
+          ? parsed
+          : [];
+      } catch (e) {
+        images = [];
+      }
+
+      let existingBlocks = null;
+
+      try {
+        const parsedBlocks =
+          existing.content_blocks
+            ? JSON.parse(existing.content_blocks)
+            : null;
+
+        existingBlocks = Array.isArray(parsedBlocks)
+          ? parsedBlocks
+          : null;
+      } catch (e) {
+        existingBlocks = null;
+      }
+
+      const incomingBlocks = sanitizeContentBlocks(req.body.content_blocks);
+      const blocksChanged =
+        req.body.content_blocks !== undefined &&
+        req.body.content_blocks !== '';
+
+      let blocks = blocksChanged ? incomingBlocks : existingBlocks;
+
+      const featuredFile =
+        req.files &&
+        req.files.image &&
+        req.files.image[0]
+          ? req.files.image[0]
+          : null;
+
+      const galleryFiles =
+        req.files &&
+        req.files.images
+          ? req.files.images
+          : [];
+
+      if (featuredFile) {
         try {
           const result = await uploadToCloudinary(
-            req.file.buffer,
+            featuredFile.buffer,
             'rubavu-today/posts'
           );
 
@@ -2640,6 +2973,71 @@ app.put(
           });
         }
       }
+
+      const uploadedUrls = [];
+
+      if (galleryFiles.length > 0) {
+        try {
+          for (const file of galleryFiles) {
+            try {
+              const result = await uploadToCloudinary(
+                file.buffer,
+                'rubavu-today/posts'
+              );
+
+              uploadedUrls.push(result.secure_url);
+            } catch (fileError) {
+              console.error(
+                '[cloudinary] One extra post image failed:',
+                fileError
+              );
+
+              uploadedUrls.push(null);
+            }
+          }
+
+          console.log(
+            `[cloudinary] ${uploadedUrls.filter(Boolean).length} extra post images uploaded`
+          );
+
+        } catch (uploadError) {
+          console.error(
+            '[cloudinary] Extra post images upload failed:',
+            uploadError
+          );
+
+          return res.status(500).json({
+            error:
+              'Failed to upload post images to Cloudinary.'
+          });
+        }
+      }
+
+      if (blocks) {
+        blocks = resolveBlockImages([...blocks], uploadedUrls);
+
+        images = blocks
+          .filter((block) => block.type === 'image' && block.url)
+          .map((block) => block.url);
+
+        if (!imageUrl) {
+          imageUrl = pickHeaderImage(blocks, existing.image);
+        }
+      } else if (galleryFiles.length > 0) {
+        images = images.concat(uploadedUrls.filter(Boolean));
+
+        if (!imageUrl && uploadedUrls.length > 0) {
+          imageUrl = uploadedUrls[0];
+        }
+      }
+
+      const imagesJson = images.length > 0
+        ? JSON.stringify(images)
+        : null;
+
+      const blocksJson = blocks && blocks.length > 0
+        ? JSON.stringify(blocks)
+        : null;
 
       const updatedYoutubeUrl =
         youtube_url !==
@@ -2727,6 +3125,8 @@ app.put(
             category = ?,
             description = ?,
             image = ?,
+            images = ?,
+            content_blocks = ?,
             youtube_url = ?,
             Author = ?,
             status = ?,
@@ -2749,6 +3149,10 @@ app.put(
             : existing.description,
 
           imageUrl,
+
+          imagesJson,
+
+          blocksJson,
 
           updatedYoutubeUrl,
 
