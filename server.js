@@ -879,7 +879,7 @@ const upload = multer({
   fileFilter: imageFileFilter,
 
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: 15 * 1024 * 1024,
 
     files: 12
   }
@@ -5621,10 +5621,13 @@ app.use(
       error instanceof
       multer.MulterError
     ) {
+      const message =
+        error.code === 'LIMIT_FILE_SIZE'
+          ? 'Image is too large. Maximum allowed size is 15 MB.'
+          : 'File upload error: ' + error.message;
+
       return res.status(400).json({
-        error:
-          'File upload error: ' +
-          error.message
+        error: message
       });
     }
 
