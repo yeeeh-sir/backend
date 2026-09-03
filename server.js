@@ -879,7 +879,7 @@ const upload = multer({
   fileFilter: imageFileFilter,
 
   limits: {
-    fileSize: 15 * 1024 * 1024,
+    fileSize: 120 * 1024 * 1024,
 
     files: 12
   }
@@ -3101,13 +3101,27 @@ app.put(
         req.user.role_type ===
         'chief_editor'
       ) {
-        if (
-          existing.status ===
-          'approved'
-        ) {
-          updatedStatus =
-            'approved';
+        const requestedStatus = String(
+          req.body?.status || ''
+        ).trim().toLowerCase();
 
+        const validStatuses = [
+          'approved',
+          'pending',
+          'rejected',
+        ];
+
+        let nextStatus = existing.status;
+
+        if (validStatuses.includes(requestedStatus)) {
+          nextStatus = requestedStatus;
+        } else if (existing.status === 'approved') {
+          nextStatus = 'approved';
+        }
+
+        updatedStatus = nextStatus;
+
+        if (nextStatus === 'approved') {
           approvedBy =
             req.user.full_name ||
             req.user.email;
@@ -3118,6 +3132,16 @@ app.put(
 
           rejectionReason =
             null;
+        } else if (nextStatus === 'rejected') {
+          approvedBy = null;
+          approvedAt = null;
+          rejectionReason =
+            existing.rejection_reason ||
+            'Post was sent back for revision.';
+        } else {
+          approvedBy = null;
+          approvedAt = null;
+          rejectionReason = null;
         }
       }
 
@@ -5623,7 +5647,7 @@ app.use(
     ) {
       const message =
         error.code === 'LIMIT_FILE_SIZE'
-          ? 'Image is too large. Maximum allowed size is 15 MB.'
+          ? 'Image is too large. Maximum allowed size is 120 MB.'
           : 'File upload error: ' + error.message;
 
       return res.status(400).json({
