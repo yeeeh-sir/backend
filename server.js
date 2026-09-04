@@ -2199,6 +2199,43 @@ app.get(
   }
 );
 
+app.get(
+  '/api/admin/posts/:id',
+  requireAuth,
+  requirePostManagement,
+  async (req, res) => {
+    try {
+      const [rows] =
+        await getPool().query(
+          `
+            SELECT *
+            FROM posts
+            WHERE id = ?
+          `,
+          [req.params.id]
+        );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          error: 'Post not found.'
+        });
+      }
+
+      res.json(rows[0]);
+
+    } catch (error) {
+      console.error(
+        'Admin fetch single post error:',
+        error
+      );
+
+      res.status(500).json({
+        error: 'Unable to fetch post.'
+      });
+    }
+  }
+);
+
 /* =========================================================
    CHIEF EDITOR POSTS
 ========================================================= */
