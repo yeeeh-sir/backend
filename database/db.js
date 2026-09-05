@@ -1102,26 +1102,9 @@ async function init() {
     "[database] advertisements table ready."
   );
 
-  /* =======================================================
-     TRANSLATIONS (persistent translation cache)
-  ======================================================= */
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS translations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      source_hash CHAR(64) NOT NULL,
-      source_text MEDIUMTEXT NOT NULL,
-      source_lang VARCHAR(10) DEFAULT 'rw',
-      target_lang VARCHAR(10) NOT NULL,
-      translated_text MEDIUMTEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_translation (source_hash, source_lang, target_lang)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  `);
-
-  console.log(
-    "[database] translations table ready."
-  );
+  /* (Translation system removed: single-language site. The translations and
+     post_translations tables are no longer created. The original posts table
+     remains the canonical content.) */
 
   /* =======================================================
      POSTS MIGRATIONS
