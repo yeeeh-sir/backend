@@ -209,14 +209,14 @@ function allowUnverifiedTls() {
 function missingCaError(message) {
   return new Error(
     "[database] " +
-      message +
-      "\n" +
-      "  To enable verified TLS for the remote database, provide the server's " +
-      "CA certificate PEM:\n" +
-      "    - DB_SSL_CA_FILE=/path/to/ca-certificate.pem (preferred, reads via fs), or\n" +
-      "    - DB_SSL_CA='-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----' (inline)\n" +
-      "  Both are read from the environment at startup; nothing is hard-coded.\n" +
-      "  Do NOT set DB_SSL_REJECT_UNAUTHORIZED=false in production."
+    message +
+    "\n" +
+    "  To enable verified TLS for the remote database, provide the server's " +
+    "CA certificate PEM:\n" +
+    "    - DB_SSL_CA_FILE=/path/to/ca-certificate.pem (preferred, reads via fs), or\n" +
+    "    - DB_SSL_CA='-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----' (inline)\n" +
+    "  Both are read from the environment at startup; nothing is hard-coded.\n" +
+    "  Do NOT set DB_SSL_REJECT_UNAUTHORIZED=false in production."
   );
 }
 
@@ -427,8 +427,8 @@ function getConnectionConfig(
     if (production) {
       throw missingCaError(
         "DB_SSL_REJECT_UNAUTHORIZED is disabled but the environment is production. " +
-          "Refusing to connect without certificate verification. " +
-          "Remove DB_SSL_REJECT_UNAUTHORIZED or set it to true in production."
+        "Refusing to connect without certificate verification. " +
+        "Remove DB_SSL_REJECT_UNAUTHORIZED or set it to true in production."
       );
     }
 
@@ -451,7 +451,7 @@ function getConnectionConfig(
     if (production) {
       throw missingCaError(
         "Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided, " +
-          "so certificate verification cannot be enabled. Refusing to connect without verified TLS."
+        "so certificate verification cannot be enabled. Refusing to connect without verified TLS."
       );
     }
 
@@ -464,8 +464,8 @@ function getConnectionConfig(
 
       console.warn(
         "[database] Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided. " +
-          "Falling back to encrypted TLS WITHOUT certificate verification. Development only — " +
-          "configure DB_SSL_CA or DB_SSL_CA_FILE before deploying."
+        "Falling back to encrypted TLS WITHOUT certificate verification. Development only — " +
+        "configure DB_SSL_CA or DB_SSL_CA_FILE before deploying."
       );
 
       return config;
@@ -480,8 +480,8 @@ function getConnectionConfig(
 
     console.warn(
       "[database] Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided yet. " +
-        "Will attempt verified TLS if a CA is configured; otherwise development-only fallback will be used. " +
-        "In production this is a hard error."
+      "Will attempt verified TLS if a CA is configured; otherwise development-only fallback will be used. " +
+      "In production this is a hard error."
     );
 
     return config;
@@ -591,10 +591,10 @@ async function createDatabasePool() {
     if (isProduction()) {
       throw missingCaError(
         "Verified TLS connection failed with a certificate/TLS error (" +
-          error.code +
-          "), but the environment is production. " +
-          "Refusing to fall back to unverified TLS. Check that DB_SSL_CA / DB_SSL_CA_FILE " +
-          "contains the correct CA certificate chain for the database host."
+        error.code +
+        "), but the environment is production. " +
+        "Refusing to fall back to unverified TLS. Check that DB_SSL_CA / DB_SSL_CA_FILE " +
+        "contains the correct CA certificate chain for the database host."
       );
     }
 
@@ -952,7 +952,10 @@ async function init() {
       status VARCHAR(20) NOT NULL DEFAULT 'pending',
       approved_by VARCHAR(150) DEFAULT NULL,
       approved_at DATETIME DEFAULT NULL,
-      rejection_reason TEXT DEFAULT NULL
+      rejection_reason TEXT DEFAULT NULL,
+      author_profile_image VARCHAR(500) DEFAULT NULL,
+      author_profile_image_url VARCHAR(500) DEFAULT NULL,
+      author_profile_image_public_id VARCHAR(255) DEFAULT NULL
     )
   `);
 
@@ -971,6 +974,9 @@ async function init() {
       email VARCHAR(150) NOT NULL UNIQUE,
       phone VARCHAR(20) DEFAULT NULL,
       password VARCHAR(255) NOT NULL,
+      profile_image VARCHAR(500) DEFAULT NULL,
+      profile_image_url VARCHAR(500) DEFAULT NULL,
+      profile_image_public_id VARCHAR(255) DEFAULT NULL,
       status VARCHAR(20) DEFAULT 'active',
       authToken VARCHAR(128) DEFAULT NULL,
       resetToken VARCHAR(128) DEFAULT NULL,
@@ -994,6 +1000,9 @@ async function init() {
     email VARCHAR(150) NOT NULL UNIQUE,
     phone VARCHAR(20) DEFAULT NULL,
     password VARCHAR(255) NOT NULL,
+    profile_image VARCHAR(500) DEFAULT NULL,
+    profile_image_url VARCHAR(500) DEFAULT NULL,
+    profile_image_public_id VARCHAR(255) DEFAULT NULL,
     status VARCHAR(20) DEFAULT 'active',
     authToken VARCHAR(128) DEFAULT NULL,
     resetToken VARCHAR(128) DEFAULT NULL,
@@ -1018,6 +1027,9 @@ async function init() {
       phone VARCHAR(20) DEFAULT NULL,
       password VARCHAR(255) NOT NULL,
       role VARCHAR(100) DEFAULT 'reporter',
+      profile_image VARCHAR(500) DEFAULT NULL,
+      profile_image_url VARCHAR(500) DEFAULT NULL,
+      profile_image_public_id VARCHAR(255) DEFAULT NULL,
       status VARCHAR(20) DEFAULT 'active',
       authToken VARCHAR(128) DEFAULT NULL,
       resetToken VARCHAR(128) DEFAULT NULL,
@@ -1173,6 +1185,56 @@ async function init() {
           ${definition}
         `
       );
+    }
+  }
+
+  /* =======================================================
+     USER PROFILE IMAGE MIGRATIONS
+  ======================================================= */
+
+  const profileImageTables = [
+    {
+      table: 'admins',
+      columns: [
+        ['profile_image', 'VARCHAR(500) DEFAULT NULL'],
+        ['profile_image_url', 'VARCHAR(500) DEFAULT NULL'],
+        ['profile_image_public_id', 'VARCHAR(255) DEFAULT NULL'],
+      ],
+    },
+    {
+      table: 'chief_editors',
+      columns: [
+        ['profile_image', 'VARCHAR(500) DEFAULT NULL'],
+        ['profile_image_url', 'VARCHAR(500) DEFAULT NULL'],
+        ['profile_image_public_id', 'VARCHAR(255) DEFAULT NULL'],
+      ],
+    },
+    {
+      table: 'employees',
+      columns: [
+        ['profile_image', 'VARCHAR(500) DEFAULT NULL'],
+        ['profile_image_url', 'VARCHAR(500) DEFAULT NULL'],
+        ['profile_image_public_id', 'VARCHAR(255) DEFAULT NULL'],
+      ],
+    },
+    {
+      table: 'posts',
+      columns: [
+        ['author_profile_image', 'VARCHAR(500) DEFAULT NULL'],
+        ['author_profile_image_url', 'VARCHAR(500) DEFAULT NULL'],
+        ['author_profile_image_public_id', 'VARCHAR(255) DEFAULT NULL'],
+      ],
+    },
+  ];
+
+  for (const { table, columns } of profileImageTables) {
+    for (const [column, definition] of columns) {
+      if (!(await columnExists(table, column))) {
+        await safeAlter(
+          `${table}.${column}`,
+          `ALTER TABLE ${table} ADD COLUMN \`${column}\` ${definition}`
+        );
+      }
     }
   }
 
