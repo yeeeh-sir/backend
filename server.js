@@ -635,6 +635,120 @@ function generateToken() {
 }
 
 /* =========================================================
+   NOTIFICATION HELPER
+   recipient_id = 0 broadcasts to every account of that role.
+========================================================= */
+
+async function createNotification({
+  recipientType = 'employee',
+  recipientId = 0,
+  type = 'announcement',
+  title = '',
+  message = null,
+  postId = null,
+}) {
+  try {
+    await getPool().execute(
+      `
+        INSERT INTO notifications
+        (
+          recipient_type,
+          recipient_id,
+          type,
+          title,
+          message,
+          post_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        recipientType,
+        recipientId,
+        type,
+        String(title).slice(0, 255),
+        message ? String(message).slice(0, 2000) : null,
+        postId,
+      ]
+    );
+  } catch (error) {
+    console.error(
+      '[notification] Failed to create notification:',
+      error.message
+    );
+  }
+}
+
+/* Notify every chief editor that a new employee submission needs review. */
+async function notifyChiefEditorsAboutPost(postId, title, employeeName) {
+  try {
+    const [chiefs] = await getPool().query(
+      `
+        SELECT id
+        FROM chief_editors
+        WHERE status = 'active'
+      `
+    );
+
+    for (const chief of chiefs) {
+      await createNotification({
+        recipientType: 'chief_editor',
+        recipientId: chief.id,
+        type: 'submitted',
+        title: 'Inkuru nshya yatanzwe',
+        message: `${employeeName} yatanze inkuru: ${title}`,
+        postId,
+      });
+    }
+  } catch (error) {
+    console.error(
+      '[notification] Failed to notify chief editors:',
+      error.message
+    );
+  }
+}
+
+/* Find the employee id that authored a post, then notify them. */
+async function notifyPostAuthor(post, notification) {
+  try {
+    const authorName = String(
+      post?.Author || post?.author_name || ''
+    ).trim();
+
+    if (!authorName || authorName.toLowerCase() === 'admin') {
+      return;
+    }
+
+    const [employees] = await getPool().query(
+      `
+        SELECT id, full_name
+        FROM employees
+        WHERE full_name = ?
+        LIMIT 1
+      `,
+      [authorName]
+    );
+
+    if (!employees.length) {
+      return;
+    }
+
+    await createNotification({
+      recipientType: 'employee',
+      recipientId: employees[0].id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      postId: post?.id || null,
+    });
+  } catch (error) {
+    console.error(
+      '[notification] Failed to notify post author:',
+      error.message
+    );
+  }
+}
+
+/* =========================================================
    AUTHENTICATION
 ========================================================= */
 
@@ -655,7 +769,7 @@ async function requireAuth(
     if (!token) {
       return res.status(401).json({
         error:
-          'Authentication required.'
+          'Authentication required.'  
       });
     }
 
@@ -1142,7 +1256,26 @@ app.get(
         });
       }
 
-      res.json((await attachPostAuthors(rows))[0]);
+      try {
+        await getPool().execute(
+          `
+            UPDATE posts
+            SET views = views + 1
+            WHERE id = ?
+          `,
+          [rows[0].id]
+        );
+      } catch (error) {
+        console.warn(
+          '[posts] View counter update failed:',
+          error.message
+        );
+      }
+
+      const post = rows[0];
+      post.views = Number(post.views || 0) + 1;
+
+      res.json((await attachPostAuthors([post]))[0]);
 
     } catch (error) {
       console.error(
@@ -1181,7 +1314,26 @@ app.get(
         });
       }
 
-      res.json((await attachPostAuthors(rows))[0]);
+      try {
+        await getPool().execute(
+          `
+            UPDATE posts
+            SET views = views + 1
+            WHERE id = ?
+          `,
+          [rows[0].id]
+        );
+      } catch (error) {
+        console.warn(
+          '[posts] View counter update failed:',
+          error.message
+        );
+      }
+
+      const post = rows[0];
+      post.views = Number(post.views || 0) + 1;
+
+      res.json((await attachPostAuthors([post]))[0]);
     } catch (error) {
       console.error('Fetch post by slug error:', error);
       res.status(500).json({
@@ -1921,6 +2073,12 @@ app.put(
           [id]
         );
 
+      await notifyPostAuthor(existing, {
+        type: 'approved',
+        title: 'Inkuru yemejwe',
+        message: `${approverName} yemeje inkuru yawe: ${existing.title}. Isanzwe ku rubuga rwa Rubavu Today.`,
+      });
+
       res.json({
         message:
           'Post approved successfully.',
@@ -2018,6 +2176,12 @@ app.put(
           [id]
         );
 
+      await notifyPostAuthor(existing, {
+        type: 'rejected',
+        title: 'Inkuru yanzwe',
+        message: `Inkuru yawe yanzwe. Igisubizo: ${rejectionReason}`,
+      });
+
       res.json({
         message:
           'Post rejected successfully.',
@@ -2060,7 +2224,7 @@ app.put(
       const [existingRows] =
         await pool.query(
           `
-            SELECT id
+            SELECT id, title, Author
             FROM posts
             WHERE id = ?
             LIMIT 1
@@ -2074,6 +2238,9 @@ app.put(
             'Post not found.'
         });
       }
+
+      const existing =
+        existingRows[0];
 
       await pool.execute(
         `
@@ -2097,6 +2264,12 @@ app.put(
           `,
           [id]
         );
+
+      await notifyPostAuthor(existing, {
+        type: 'feedback',
+        title: 'Inkuru isubijwe ku ntego',
+        message: `Inkuru yawe: ${existing.title}, yasubijwe gukurikirana. Nyungure hanyuma usubire uyitange.`,
+      });
 
       res.json({
         message:
@@ -2137,7 +2310,11 @@ app.post(
         category,
         description,
         youtube_url,
-        author
+        author,
+        tags,
+        location,
+        summary,
+        status
       } = req.body;
 
       if (
@@ -2278,6 +2455,17 @@ app.post(
 
       if (
         req.user.role_type ===
+        'employee'
+      ) {
+        const requestedStatus = String(
+          status || ''
+        ).trim().toLowerCase();
+
+        if (requestedStatus === 'draft') {
+          postStatus = 'draft';
+        }
+      } else if (
+        req.user.role_type ===
         'admin' ||
         req.user.role_type ===
         'chief_editor'
@@ -2304,6 +2492,18 @@ app.post(
         req.user.profile_image ||
         null;
 
+      const tagsValue = tags !== undefined && String(tags).trim()
+        ? String(tags).slice(0, 500)
+        : null;
+
+      const locationValue = location !== undefined && String(location).trim()
+        ? String(location).slice(0, 255)
+        : null;
+
+      const summaryValue = summary !== undefined && String(summary).trim()
+        ? String(summary).slice(0, 2000)
+        : null;
+
       const [result] =
         await getPool().execute(
           `
@@ -2321,11 +2521,14 @@ app.post(
               Author,
               author_profile_image,
               status,
+              tags,
+              location,
+              summary,
               rejection_reason,
               approved_by,
               approved_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
           `,
           [
             String(title).trim(),
@@ -2340,6 +2543,9 @@ app.post(
             authorName,
             authorProfileImage,
             postStatus,
+            tagsValue,
+            locationValue,
+            summaryValue,
             approvedBy,
             approvedAt
           ]
@@ -2366,12 +2572,22 @@ app.post(
           [result.insertId]
         );
 
+      if (postStatus === 'pending') {
+        await notifyChiefEditorsAboutPost(
+          result.insertId,
+          String(title).trim(),
+          authorName
+        );
+      }
+
       res.status(201).json({
         message:
           postStatus ===
             'pending'
             ? 'Post submitted successfully and is waiting for Admin or Chief Editor approval.'
-            : 'Post published successfully.',
+            : postStatus === 'draft'
+              ? 'Draft saved successfully.'
+              : 'Post published successfully.',
         post:
           rows[0]
       });
@@ -2413,8 +2629,16 @@ app.put(
         category,
         description,
         youtube_url,
-        author
+        author,
+        tags,
+        location,
+        summary,
+        status
       } = req.body;
+
+      const encodedStatus = String(
+        status || ''
+      ).trim().toLowerCase();
 
       const userRole =
         String(
@@ -2645,8 +2869,11 @@ app.put(
         req.user.role_type ===
         'employee'
       ) {
-        updatedStatus =
-          'pending';
+        if (encodedStatus === 'draft') {
+          updatedStatus = 'draft';
+        } else {
+          updatedStatus = 'pending';
+        }
 
         approvedBy =
           null;
@@ -2717,6 +2944,18 @@ app.put(
         ? await ensureUniqueSlug(incomingTitle, Number(id))
         : nextSlug;
 
+      const tagsValue = tags !== undefined
+        ? (String(tags).trim() ? String(tags).slice(0, 500) : null)
+        : existing.tags || null;
+
+      const locationValue = location !== undefined
+        ? (String(location).trim() ? String(location).slice(0, 255) : null)
+        : existing.location || null;
+
+      const summaryValue = summary !== undefined
+        ? (String(summary).trim() ? String(summary).slice(0, 2000) : null)
+        : existing.summary || null;
+
       await pool.execute(
         `
           UPDATE posts
@@ -2731,6 +2970,10 @@ app.put(
             youtube_url = ?,
             Author = ?,
             status = ?,
+            tags = ?,
+            location = ?,
+            summary = ?,
+            updated_at = NOW(),
             rejection_reason = ?,
             approved_by = ?,
             approved_at = ?
@@ -2761,6 +3004,12 @@ app.put(
 
           updatedStatus,
 
+          tagsValue,
+
+          locationValue,
+
+          summaryValue,
+
           rejectionReason,
 
           approvedBy,
@@ -2781,11 +3030,24 @@ app.put(
           [id]
         );
 
+      if (
+        req.user.role_type === 'employee' &&
+        updatedStatus === 'pending'
+      ) {
+        await notifyChiefEditorsAboutPost(
+          id,
+          incomingTitle,
+          updatedAuthor || req.user.full_name || req.user.email
+        );
+      }
+
       res.json({
         message:
           req.user.role_type ===
             'employee'
-            ? 'Post updated and sent back for Admin or Chief Editor approval.'
+            ? updatedStatus === 'draft'
+              ? 'Draft saved successfully.'
+              : 'Post updated and sent back for Admin or Chief Editor approval.'
             : 'Post updated successfully.',
         post:
           rows[0]
@@ -2813,7 +3075,6 @@ app.put(
 app.delete(
   '/api/posts/:id',
   requireAuth,
-  requirePostManagement,
   async (req, res) => {
     try {
       const {
@@ -2826,7 +3087,7 @@ app.delete(
       const [existing] =
         await pool.query(
           `
-            SELECT id, image
+            SELECT id, image, Author, status
             FROM posts
             WHERE id = ?
           `,
@@ -2837,6 +3098,45 @@ app.delete(
         return res.status(404).json({
           error:
             'Post not found.'
+        });
+      }
+
+      const post =
+        existing[0];
+
+      if (
+        req.user.role_type ===
+        'employee'
+      ) {
+        const employeeName =
+          req.user.full_name ||
+          req.user.email;
+
+        if (
+          String(post.Author || '').trim() !==
+          String(employeeName || '').trim()
+        ) {
+          return res.status(403).json({
+            error:
+              'You can only delete your own posts.'
+          });
+        }
+
+        if (
+          post.status === 'approved'
+        ) {
+          return res.status(403).json({
+            error:
+              'Published posts cannot be deleted. Ask the Chief Editor or Admin for help.'
+          });
+        }
+      } else if (
+        req.user.role_type !== 'admin' &&
+        req.user.role_type !== 'chief_editor'
+      ) {
+        return res.status(403).json({
+          error:
+            'You are not allowed to delete posts.'
         });
       }
 
@@ -2912,6 +3212,399 @@ app.get(
       res.status(500).json({
         error:
           'Unable to fetch your posts.'
+      });
+    }
+  }
+);
+
+/* =========================================================
+   NOTIFICATIONS
+========================================================= */
+
+function notificationRecipientFilter(user) {
+  const id = Number(user?.id) || 0;
+
+  return {
+    recipientType: String(user?.role_type || 'employee'),
+    recipientId: id,
+  };
+}
+
+async function notificationQuery(user, { unreadOnly = false, limit = 100 } = {}) {
+  const { recipientType, recipientId } = notificationRecipientFilter(user);
+
+  let where = `
+    (recipient_type = ?
+      AND (recipient_id = ? OR recipient_id = 0))
+  `;
+  const params = [recipientType, recipientId];
+
+  if (unreadOnly) {
+    where += ` AND read_flag = 0`;
+  }
+
+  const [rows] = await getPool().query(
+    `
+      SELECT
+        id,
+        recipient_type,
+        recipient_id,
+        type,
+        title,
+        message,
+        post_id,
+        read_flag,
+        created_at
+      FROM notifications
+      WHERE ${where}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `,
+    [...params, limit]
+  );
+
+  return rows;
+}
+
+app.get(
+  '/api/notifications',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const rows = await notificationQuery(req.user, { limit: 100 });
+      res.json(rows);
+    } catch (error) {
+      console.error(
+        'Fetch notifications error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to fetch notifications.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/notifications/unread-count',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { recipientType, recipientId } = notificationRecipientFilter(req.user);
+
+      const [rows] = await getPool().query(
+        `
+          SELECT COUNT(*) AS unread
+          FROM notifications
+          WHERE (recipient_type = ?
+              AND (recipient_id = ? OR recipient_id = 0))
+            AND read_flag = 0
+        `,
+        [recipientType, recipientId]
+      );
+
+      res.json({ unread: Number(rows[0]?.unread || 0) });
+    } catch (error) {
+      console.error(
+        'Fetch unread notification count error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to fetch unread count.'
+      });
+    }
+  }
+);
+
+app.put(
+  '/api/notifications/:id/read',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { recipientType, recipientId } = notificationRecipientFilter(req.user);
+
+      const [result] = await getPool().execute(
+        `
+          UPDATE notifications
+          SET read_flag = 1
+          WHERE id = ?
+            AND recipient_type = ?
+            AND (recipient_id = ? OR recipient_id = 0)
+        `,
+        [id, recipientType, recipientId]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          error:
+            'Notification not found.'
+        });
+      }
+
+      res.json({
+        message:
+          'Notification marked as read.',
+        id
+      });
+    } catch (error) {
+      console.error(
+        'Mark notification read error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to update notification.'
+      });
+    }
+  }
+);
+
+app.put(
+  '/api/notifications/read-all',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { recipientType, recipientId } = notificationRecipientFilter(req.user);
+
+      await getPool().execute(
+        `
+          UPDATE notifications
+          SET read_flag = 1
+          WHERE recipient_type = ?
+            AND (recipient_id = ? OR recipient_id = 0)
+            AND read_flag = 0
+        `,
+        [recipientType, recipientId]
+      );
+
+      res.json({
+        message:
+          'All notifications marked as read.'
+      });
+    } catch (error) {
+      console.error(
+        'Mark all notifications read error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to update notifications.'
+      });
+    }
+  }
+);
+
+/* =========================================================
+   MEDIA LIBRARY
+========================================================= */
+
+app.get(
+  '/api/media-library',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const pool = getPool();
+      let rows = [];
+
+      if (
+        req.user.role_type === 'admin' ||
+        req.user.role_type === 'chief_editor'
+      ) {
+        [rows] = await pool.query(
+          `
+            SELECT *
+            FROM media_library
+            ORDER BY created_at DESC, id DESC
+          `
+        );
+      } else {
+        [rows] = await pool.query(
+          `
+            SELECT *
+            FROM media_library
+            WHERE employee_id = ?
+            ORDER BY created_at DESC, id DESC
+          `,
+          [req.user.id]
+        );
+      }
+
+      res.json(rows);
+    } catch (error) {
+      console.error(
+        'Fetch media library error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to fetch media library.'
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/media-library',
+  requireAuth,
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({
+          error:
+            'No image file was uploaded.'
+        });
+      }
+
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        'rubavu-today/media'
+      );
+
+      const imageUrl = result.secure_url;
+      const publicId = result.public_id || null;
+      const filename = req.file.originalname || 'image';
+
+      const [insertResult] = await getPool().execute(
+        `
+          INSERT INTO media_library
+          (
+            employee_id,
+            employee_name,
+            image_url,
+            public_id,
+            filename
+          )
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          req.user.role_type === 'employee'
+            ? req.user.id
+            : null,
+          req.user.full_name || req.user.email || null,
+          imageUrl,
+          publicId,
+          filename,
+        ]
+      );
+
+      const [rows] = await getPool().query(
+        `
+          SELECT *
+          FROM media_library
+          WHERE id = ?
+        `,
+        [insertResult.insertId]
+      );
+
+      res.status(201).json({
+        message:
+          'Image uploaded to the media library.',
+        media: rows[0]
+      });
+    } catch (error) {
+      console.error(
+        'Media library upload error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          error.message ||
+          'Unable to upload image.'
+      });
+    }
+  }
+);
+
+app.delete(
+  '/api/media-library/:id',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const pool = getPool();
+
+      const [rows] = await pool.query(
+        `
+          SELECT id, public_id
+          FROM media_library
+          WHERE id = ?
+        `,
+        [id]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          error:
+            'Media item not found.'
+        });
+      }
+
+      const media = rows[0];
+
+      if (
+        req.user.role_type === 'employee'
+      ) {
+        const [owner] = await pool.query(
+          `
+            SELECT id, employee_id
+            FROM media_library
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+        if (
+          owner[0].employee_id !== req.user.id
+        ) {
+          return res.status(403).json({
+            error:
+              'You can only delete images you uploaded.'
+          });
+        }
+      }
+
+      if (media.public_id) {
+        try {
+          await cloudinary.uploader.destroy(media.public_id);
+        } catch (destroyError) {
+          console.warn(
+            '[media] Cloudinary destroy failed (row will still be deleted):',
+            destroyError.message
+          );
+        }
+      }
+
+      await pool.execute(
+        `
+          DELETE FROM media_library
+          WHERE id = ?
+        `,
+        [id]
+      );
+
+      res.json({
+        message:
+          'Image deleted from the media library.'
+      });
+    } catch (error) {
+      console.error(
+        'Media library delete error:',
+        error
+      );
+
+      res.status(500).json({
+        error:
+          'Unable to delete image.'
       });
     }
   }
@@ -5222,13 +5915,111 @@ app.put(
         error: 'Unable to update profile image.'
       });
     }
+}
+
+);
+
+/* =========================================================
+   EMPLOYEE PROFILE UPDATE
+========================================================= */
+
+app.put(
+  '/api/profile',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { full_name, department } = req.body || {};
+
+      if (
+        !full_name &&
+        department === undefined
+      ) {
+        return res.status(400).json({
+          error: 'Nta kintu gihinduka.'
+        });
+      }
+
+      const table =
+        req.user.role_type === 'admin'
+          ? 'admins'
+          : req.user.role_type === 'chief_editor'
+            ? 'chief_editors'
+            : 'employees';
+
+      const updates = [];
+      const params = [];
+
+      if (
+        full_name &&
+        String(full_name).trim()
+      ) {
+        updates.push('full_name = ?');
+        params.push(String(full_name).trim());
+      }
+
+      if (department !== undefined) {
+        updates.push('department = ?');
+        params.push(
+          department === ''
+            ? null
+            : String(department).trim()
+        );
+      }
+
+      if (!updates.length) {
+        return res.status(400).json({
+          error: 'Nta kintu gihinduka.'
+        });
+      }
+
+      params.push(req.user.id);
+
+      await getPool().execute(
+        `
+          UPDATE ${table}
+          SET ${updates.join(', ')}
+          WHERE id = ?
+        `,
+        params
+      );
+
+      const [rows] = await getPool().query(
+        `
+          SELECT *
+          FROM ${table}
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [req.user.id]
+      );
+
+      const user = rows?.[0] || null;
+
+      if (user) {
+        delete user.password;
+      }
+
+      res.json({
+        message: 'Umwirondoro wahinduwe neza.',
+        user
+      });
+    } catch (error) {
+      console.error(
+        'Profile update error:',
+        error
+      );
+      return res.status(500).json({
+        error:
+          error.message ||
+          'Unable to update profile.'
+      });
+    }
   }
 );
 
 /* =========================================================
    HEALTH
 ========================================================= */
-
 app.get(
   '/api/health',
   (req, res) => {

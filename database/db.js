@@ -964,6 +964,76 @@ async function init() {
   );
 
   /* =======================================================
+     POST WORKFLOW COLUMNS (tags, location, summary, views,
+     updated_at) added without breaking existing installs.
+  ======================================================= */
+
+  const postWorkflowColumns = [
+    ["tags", "VARCHAR(500) DEFAULT NULL"],
+    ["location", "VARCHAR(255) DEFAULT NULL"],
+    ["summary", "TEXT DEFAULT NULL"],
+    ["views", "INT NOT NULL DEFAULT 0"],
+    ["updated_at", "DATETIME DEFAULT NULL"],
+  ];
+
+  for (const [column, definition] of postWorkflowColumns) {
+    if (!(await columnExists("posts", column))) {
+      await safeAlter(
+        `posts.${column}`,
+        `ALTER TABLE posts ADD COLUMN ${column} ${definition}`
+      );
+    }
+  }
+
+  /* =======================================================
+     NOTIFICATIONS
+     Recipients: employees / chief_editors / admins.
+     recipient_id = 0 means a broadcast to every account of
+     that role (e.g. newsroom announcements).
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      recipient_type VARCHAR(30) NOT NULL DEFAULT 'employee',
+      recipient_id INT NOT NULL DEFAULT 0,
+      type VARCHAR(30) NOT NULL DEFAULT 'announcement',
+      title VARCHAR(255) NOT NULL,
+      message TEXT DEFAULT NULL,
+      post_id INT DEFAULT NULL,
+      read_flag TINYINT(1) NOT NULL DEFAULT 0,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_notif_recipient (recipient_type, recipient_id, read_flag)
+    )
+  `);
+
+  console.log(
+    "[database] notifications table ready."
+  );
+
+  /* =======================================================
+     MEDIA LIBRARY
+     Images uploaded by employees via the Media section.
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_library (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      employee_id INT DEFAULT NULL,
+      employee_name VARCHAR(150) DEFAULT NULL,
+      image_url VARCHAR(500) NOT NULL,
+      public_id VARCHAR(500) DEFAULT NULL,
+      filename VARCHAR(255) DEFAULT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_media_employee (employee_id)
+    )
+  `);
+
+  console.log(
+    "[database] media_library table ready."
+  );
+
+  /* =======================================================
      ADMINS
   ======================================================= */
 
