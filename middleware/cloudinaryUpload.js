@@ -13,12 +13,15 @@ const upload = multer({
       "image/png",
       "image/webp",
       "image/jpg",
+      "image/jfif",
+      "image/gif",
+      "image/avif",
     ];
 
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only JPG, JPEG, PNG, and WebP images are allowed."));
+      cb(new Error("Only JPG, JPEG, JFIF, PNG, GIF, AVIF, and WebP images are allowed."));
     }
   },
 });

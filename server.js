@@ -14,10 +14,20 @@ const https = require('https');
 const { chatWithGemini, chatSirGPT } = require('./services/geminiService');
 
 const {
+  withCache,
+  invalidateContentCaches,
+  invalidateCategories,
+  invalidateAdvertisements,
+} = require('./services/cache');
+
+const { createPublicRateLimiter } = require('./middleware/rateLimiter');
+
+const {
   getPool,
   hashPassword,
   verifyPassword,
-  init
+  init,
+  closePool
 } = require('./database/db');
 
 const app = express();
@@ -57,12 +67,111 @@ app.use(
 ========================================================= */
 
 app.use((req, res, next) => {
-  console.log(
-    `[request] ${req.method} ${req.originalUrl}`
-  );
+  const start = process.hrtime.bigint();
+
+  const originalEnd = res.end;
+  res.end = function end(...args) {
+    const ns = Number(process.hrtime.bigint() - start);
+    const ms = (ns / 1e6).toFixed(1);
+
+    console.log(
+      `[request] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`
+    );
+
+    res.end = originalEnd;
+    return res.end(...args);
+  };
 
   next();
 });
+
+/* =========================================================
+   PUBLIC CACHE SETTINGS
+   Conservative TTLs so newly published articles never stay
+   invisible for long. Writes invalidate these caches eagerly
+   (see invalidateContentCaches) instead of waiting for TTL.
+========================================================= */
+
+const PUBLIC_CACHE_TTL = {
+  postsList: Number(process.env.CACHE_TTL_POSTS_LIST || 30),
+  postDetail: Number(process.env.CACHE_TTL_POST_DETAIL || 600),
+  categories: Number(process.env.CACHE_TTL_CATEGORIES || 600),
+  categoryDetail: Number(process.env.CACHE_TTL_CATEGORY_DETAIL || 300),
+  advertisements: Number(process.env.CACHE_TTL_ADS || 120),
+  sitemap: Number(process.env.CACHE_TTL_SITEMAP || 300),
+};
+
+/* Lightweight per-instance guard for read-heavy public endpoints. */
+const publicRateLimiter = createPublicRateLimiter();
+
+/* Splat mount: every PUBLIC read route registered after this point is
+   rate-limited. Authenticated dashboard routes are unaffected. */
+app.use('/api/posts', publicRateLimiter);
+app.use('/api/categories', publicRateLimiter);
+app.use('/api/advertisements', publicRateLimiter);
+
+function setPublicCacheHeaders(res, { maxAge, sMaxAge, swr }) {
+  const parts = ['public'];
+
+  if (maxAge) parts.push(`max-age=${maxAge}`);
+  if (sMaxAge) parts.push(`s-maxage=${sMaxAge}`);
+  if (swr) parts.push(`stale-while-revalidate=${swr}`);
+
+  res.set('Cache-Control', parts.join(', '));
+}
+
+/* =========================================================
+   LOGIN RATE LIMITING (in-memory, per IP + email)
+   Protects /api/auth/login against brute-force attempts.
+   Sliding window: 8 failed attempts per 15 minutes.
+========================================================= */
+
+const loginAttempts = new Map();
+
+function checkLoginRateLimit(ip, email) {
+  const key = `${ip}|${String(email || '').toLowerCase()}`;
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const maxAttempts = 8;
+
+  let entry = loginAttempts.get(key);
+
+  if (!entry || now - entry.firstAt > windowMs) {
+    entry = { firstAt: now, count: 0 };
+    loginAttempts.set(key, entry);
+  }
+
+  if (entry.count >= maxAttempts) {
+    return {
+      blocked: true,
+      retryAfterMs: entry.firstAt + windowMs - now,
+    };
+  }
+
+  entry.count += 1;
+
+  return { blocked: false };
+}
+
+function clearLoginRateLimit(ip, email) {
+  const key = `${ip}|${String(email || '').toLowerCase()}`;
+  loginAttempts.delete(key);
+}
+
+/* Map an authenticated user role to its database table name.
+   Only whitelisted values are allowed (prevents SQL injection). */
+function userTableForRole(roleType) {
+  switch (String(roleType || '').trim()) {
+    case 'admin':
+      return 'admins';
+    case 'chief_editor':
+      return 'chief_editors';
+    case 'employee':
+      return 'employees';
+    default:
+      return null;
+  }
+}
 
 /* =========================================================
    AI WEBSITE ASSISTANT — Google Gemini
@@ -219,22 +328,61 @@ app.use(
 );
 
 /* =========================================================
+   PROFILE IMAGE FALLBACK
+   Legacy accounts may still reference local profile pictures
+   (e.g. /uploads/profiles/profile-14-....jpg) that no longer
+   exist on disk — Render wipes the ephemeral filesystem on
+   every deploy and uploads now go to Cloudinary. When the
+   static middleware above cannot find the file, serve a
+   neutral default avatar instead of falling through to the
+   404 handler (which spammed the logs on every page load).
+========================================================= */
+
+const DEFAULT_PROFILE_AVATAR_SVG = [
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">',
+  '  <rect width="128" height="128" rx="64" fill="#e2e8f0"/>',
+  '  <circle cx="64" cy="52" r="24" fill="#94a3b8"/>',
+  '  <path d="M26 116c4-26 23-38 38-38s34 12 38 38z" fill="#94a3b8"/>',
+  '</svg>',
+].join('\n');
+
+app.use(
+  '/uploads/profiles',
+  (req, res, next) => {
+    /* A request reaching here means express.static could not
+       serve the file (it fell through). Respond with a default
+       avatar so broken legacy references resolve gracefully. */
+    res.set({
+      'Content-Type': 'image/svg+xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
+    });
+
+    return res.status(200).send(DEFAULT_PROFILE_AVATAR_SVG);
+  }
+);
+
+/* =========================================================
    UPLOAD FILE TYPES
 ========================================================= */
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
+  'image/jpg',
+  'image/jfif',
   'image/png',
   'image/webp',
-  'image/gif'
+  'image/gif',
+  'image/avif'
 ]);
 
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
   '.jpg',
   '.jpeg',
+  '.jfif',
   '.png',
   '.webp',
-  '.gif'
+  '.gif',
+  '.avif'
 ]);
 
 /* =========================================================
@@ -265,7 +413,7 @@ function imageFileFilter(req, file, cb) {
   if (!mimeOk || !extOk) {
     return cb(
       new Error(
-        'Only JPG, PNG, WEBP, and GIF image files are allowed.'
+        'Only JPG, JPEG, JFIF, PNG, GIF, AVIF, and WEBP image files are allowed.'
       )
     );
   }
@@ -290,13 +438,7 @@ const upload = multer({
 });
 
 const profileUpload = multer({
-  storage: multer.diskStorage({
-    destination: profileUploadsDir,
-    filename: (req, file, callback) => {
-      const extension = path.extname(file.originalname || '').toLowerCase();
-      callback(null, `profile-${req.user.id}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${extension}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   fileFilter: imageFileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,
@@ -386,7 +528,7 @@ function validateCloudinaryConfig() {
   return config;
 }
 
-function uploadToCloudinary(buffer, folder = 'rubavu-today') {
+function uploadToCloudinary(buffer, folder = 'rubavu-today', options = {}) {
   console.log('[cloudinary] BEFORE upload UTC:', new Date().toISOString());
   console.log('[cloudinary] BEFORE upload epoch:', Math.floor(Date.now() / 1000));
   console.log('[cloudinary] SDK version:', require('cloudinary/package.json').version);
@@ -412,6 +554,7 @@ function uploadToCloudinary(buffer, folder = 'rubavu-today') {
         folder,
         resource_type: 'image',
         timestamp: correctedEpoch,
+        ...options,
       },
       (error, result) => {
         if (error) {
@@ -746,6 +889,240 @@ async function notifyPostAuthor(post, notification) {
       error.message
     );
   }
+}
+
+/* =========================================================
+   STATUS HISTORY + AUDIT LOG HELPERS
+   Every status change is stored (who, previous, new,
+   date/time, feedback). Admin/Chief actions also get an
+   audit trail entry.
+========================================================= */
+
+async function recordStatusHistory({
+  postId,
+  actorRole = 'system',
+  actorName = 'System',
+  previousStatus = null,
+  newStatus = '',
+  reason = null,
+}) {
+  try {
+    await getPool().execute(
+      `
+        INSERT INTO post_status_history
+        (post_id, actor_role, actor_name, previous_status, new_status, reason)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        postId,
+        String(actorRole).slice(0, 30),
+        String(actorName || '').slice(0, 150),
+        previousStatus ? String(previousStatus).slice(0, 20) : null,
+        String(newStatus).slice(0, 20),
+        reason ? String(reason).slice(0, 2000) : null,
+      ]
+    );
+  } catch (error) {
+    console.error(
+      '[status-history] Failed to record status change:',
+      error.message
+    );
+  }
+}
+
+async function recordAudit({
+  actorRole = 'system',
+  actorName = 'System',
+  action = '',
+  targetType = null,
+  targetId = null,
+  targetTitle = null,
+  previousValue = null,
+  newValue = null,
+}) {
+  try {
+    await getPool().execute(
+      `
+        INSERT INTO audit_log
+        (actor_role, actor_name, action, target_type, target_id, target_title, previous_value, new_value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        String(actorRole).slice(0, 30),
+        String(actorName || '').slice(0, 150),
+        String(action).slice(0, 50),
+        targetType ? String(targetType).slice(0, 50) : null,
+        targetId != null ? Number(targetId) : null,
+        targetTitle ? String(targetTitle).slice(0, 255) : null,
+        previousValue != null ? String(previousValue).slice(0, 2000) : null,
+        newValue != null ? String(newValue).slice(0, 2000) : null,
+      ]
+    );
+  } catch (error) {
+    console.error(
+      '[audit] Failed to record audit entry:',
+      error.message
+    );
+  }
+}
+
+/* Notify every active admin about important events. */
+async function notifyAdmins({ type = 'announcement', title = '', message = '', postId = null }) {
+  try {
+    const [admins] = await getPool().query(
+      `
+        SELECT id
+        FROM admins
+        WHERE status = 'active'
+      `
+    );
+
+    for (const admin of admins) {
+      await createNotification({
+        recipientType: 'admin',
+        recipientId: admin.id,
+        type,
+        title,
+        message,
+        postId,
+      });
+    }
+  } catch (error) {
+    console.error(
+      '[notification] Failed to notify admins:',
+      error.message
+    );
+  }
+}
+
+/* =========================================================
+   POST LIST FILTERING (search + pagination)
+   Non-breaking: when a `page` query param is present we
+   return { posts, total, page, pageCount, limit }, otherwise
+   the legacy array shape is preserved.
+=========================================== ============== */
+
+function parsePostListFilters(req) {
+  const rawPage = parseInt(req.query.page, 10);
+  const hasPaging = Number.isInteger(rawPage) && rawPage > 0;
+
+  return {
+    hasPaging,
+    page: hasPaging ? rawPage : 1,
+    limit: Math.min(parseInt(req.query.limit, 10) || 20, 100),
+    search: req.query.search ? String(req.query.search).trim() : '',
+    status: req.query.status ? String(req.query.status).trim() : '',
+    category: req.query.category ? String(req.query.category).trim() : '',
+    author: req.query.author ? String(req.query.author).trim() : '',
+    from: req.query.from ? String(req.query.from).trim() : '',
+    to: req.query.to ? String(req.query.to).trim() : '',
+  };
+}
+
+/* Public list cap: the legacy array shape is preserved (no pagination),
+   but only the newest N approved articles are transferred instead of the
+   whole posts table. Tune with PUBLIC_POSTS_LIMIT. */
+const PUBLIC_POSTS_LIMIT =
+  Number(process.env.PUBLIC_POSTS_LIMIT || 200) || 200;
+
+function addMaxRowsFilter(filters) {
+  return {
+    ...filters,
+    search: filters.search || '',
+    category: filters.category || '',
+    status: filters.status || '',
+    author: filters.author || '',
+    maxRows: PUBLIC_POSTS_LIMIT,
+  };
+}
+
+async function queryPostList({ fixedWhere = '1=1', fixedParams = [], filters = {}, selectFields = 'p.*, p.Author AS author_name' }) {
+  const conditions = [fixedWhere];
+  const params = [...fixedParams];
+
+  if (filters.status) {
+    conditions.push('p.status = ?');
+    params.push(filters.status);
+  }
+  if (filters.category) {
+    conditions.push('p.category = ?');
+    params.push(filters.category);
+  }
+  if (filters.author) {
+    conditions.push('p.Author LIKE ?');
+    params.push(`%${filters.author}%`);
+  }
+  if (filters.search) {
+    conditions.push('(p.title LIKE ? OR p.description LIKE ? OR p.Author LIKE ? OR p.category LIKE ?)');
+    const like = `%${filters.search}%`;
+    params.push(like, like, like, like);
+  }
+  if (filters.from) {
+    conditions.push('p.createdDate >= ?');
+    params.push(`${filters.from} 00:00:00`);
+  }
+  if (filters.to) {
+    conditions.push('p.createdDate <= ?');
+    params.push(`${filters.to} 23:59:59`);
+  }
+
+  const whereSql = conditions.join(' AND ');
+
+  const [[countRow]] = await getPool().query(
+    `SELECT COUNT(*) AS total FROM posts p WHERE ${whereSql}`,
+    params
+  );
+
+  const total = Number(countRow.total || 0);
+
+  let rows;
+  if (filters.hasPaging) {
+    const offset = (filters.page - 1) * filters.limit;
+    const [result] = await getPool().query(
+      `
+        SELECT ${selectFields}
+        FROM posts p
+        WHERE ${whereSql}
+        ORDER BY p.id DESC
+        LIMIT ? OFFSET ?
+      `,
+      [...params, filters.limit, offset]
+    );
+    rows = result;
+  } else if (filters.maxRows) {
+    /* Public feed: newest-approved-only, bounded result set. */
+    const [result] = await getPool().query(
+      `
+        SELECT ${selectFields}
+        FROM posts p
+        WHERE ${whereSql}
+        ORDER BY p.createdDate DESC, p.id DESC
+        LIMIT ?
+      `,
+      [...params, filters.maxRows]
+    );
+    rows = result;
+  } else {
+    const [result] = await getPool().query(
+      `
+        SELECT ${selectFields}
+        FROM posts p
+        WHERE ${whereSql}
+        ORDER BY
+          CASE
+            WHEN p.status = 'pending' THEN 1
+            WHEN p.status = 'approved' THEN 2
+            WHEN p.status = 'rejected' THEN 3
+            ELSE 4
+          END,
+          p.id DESC
+      `,
+      params
+    );
+    rows = result;
+  }
+
+  return { rows, total, page: filters.page, limit: filters.limit };
 }
 
 /* =========================================================
@@ -1146,29 +1523,66 @@ app.get(
   '/api/posts',
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
-            SELECT
-              id,
-              title,
-              slug,
-              category,
-              image,
-              createdDate,
-              youtube_url,
-              Author,
-              author_profile_image,
-              status,
-              SUBSTRING(description, 1, 400) AS description
-            FROM posts
-            WHERE status = 'approved'
-            ORDER BY id DESC
-          `
-        );
+      const filters = parsePostListFilters(req);
 
-      res.json(await attachPostAuthors(rows));
+      if (!filters.hasPaging) {
+        /* Public feed: bound result set (array shape preserved). */
+        Object.assign(filters, addMaxRowsFilter(filters));
+      }
 
+      const cacheKey = 'pub:posts:list:v1:' + JSON.stringify({
+        search: filters.search,
+        category: filters.category,
+        hasPaging: filters.hasPaging,
+        page: filters.page,
+        limit: filters.limit,
+      });
+
+      const body = await withCache(
+        cacheKey,
+        PUBLIC_CACHE_TTL.postsList,
+        async () => {
+          const { rows, total, page, limit } = await queryPostList({
+            fixedWhere: "p.status = 'approved'",
+            filters,
+            selectFields: `
+          p.id,
+          p.title,
+          p.slug,
+          p.category,
+          p.image,
+          p.createdDate,
+          p.youtube_url,
+          p.Author,
+          p.author_profile_image,
+          p.status,
+          SUBSTRING(p.description, 1, 400) AS description
+        `,
+          });
+
+          const enriched = await attachPostAuthors(rows);
+
+          if (filters.hasPaging) {
+            return {
+              posts: enriched,
+              total,
+              page,
+              pageCount: Math.ceil(total / limit),
+              limit,
+            };
+          }
+
+          return enriched;
+        }
+      );
+
+      setPublicCacheHeaders(res, {
+        maxAge: 30,
+        sMaxAge: 60,
+        swr: 120,
+      });
+
+      res.json(body);
     } catch (error) {
       console.error(
         'Fetch public posts error:',
@@ -1187,35 +1601,41 @@ app.get(
   '/sitemap.xml',
   async (req, res) => {
     try {
-      const [rows] = await getPool().query(
-        `
-          SELECT slug, createdDate
-          FROM posts
-          WHERE status = 'approved'
-            AND slug IS NOT NULL
-            AND slug != ''
-          ORDER BY createdDate DESC, id DESC
-        `
+      const sitemap = await withCache(
+        'pub:sitemap',
+        PUBLIC_CACHE_TTL.sitemap,
+        async () => {
+          const [rows] = await getPool().query(
+            `
+              SELECT slug, createdDate
+              FROM posts
+              WHERE status = 'approved'
+                AND slug IS NOT NULL
+                AND slug != ''
+              ORDER BY createdDate DESC, id DESC
+            `
+          );
+
+          const urls = [
+            `  <url>\n    <loc>https://rubavutoday.com/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+            ...rows.map((post) => {
+              const loc = `https://rubavutoday.com/${post.slug}.html`;
+              const lastmod = post.createdDate
+                ? `\n    <lastmod>${new Date(post.createdDate).toISOString()}</lastmod>`
+                : '';
+
+              return `  <url>\n    <loc>${escapeXml(loc)}</loc>${lastmod}\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
+            }),
+          ];
+
+          return [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+            urls.join('\n'),
+            '</urlset>',
+          ].join('\n');
+        }
       );
-
-      const urls = [
-        `  <url>\n    <loc>https://rubavutoday.com/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
-        ...rows.map((post) => {
-          const loc = `https://rubavutoday.com/${post.slug}.html`;
-          const lastmod = post.createdDate
-            ? `\n    <lastmod>${new Date(post.createdDate).toISOString()}</lastmod>`
-            : '';
-
-          return `  <url>\n    <loc>${escapeXml(loc)}</loc>${lastmod}\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
-        }),
-      ];
-
-      const sitemap = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-        urls.join('\n'),
-        '</urlset>',
-      ].join('\n');
 
       res.set({
         'Content-Type': 'application/xml; charset=utf-8',
@@ -1236,47 +1656,66 @@ app.get(
   '/api/posts/:id',
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
+      const cacheKey = 'pub:post:id:' + String(req.params.id);
+
+      const post = await withCache(
+        cacheKey,
+        PUBLIC_CACHE_TTL.postDetail,
+        async () => {
+          const [rows] =
+            await getPool().query(
+              `
             SELECT *
             FROM posts
             WHERE id = ?
             AND status = 'approved'
           `,
-          [
-            req.params.id
-          ]
-        );
+              [
+                req.params.id
+              ]
+            );
 
-      if (!rows.length) {
+          if (!rows.length) {
+            return null;
+          }
+
+          try {
+            await getPool().execute(
+              `
+            UPDATE posts
+            SET views = views + 1
+            WHERE id = ?
+          `,
+              [rows[0].id]
+            );
+          } catch (error) {
+            console.warn(
+              '[posts] View counter update failed:',
+              error.message
+            );
+          }
+
+          const row = rows[0];
+          row.views = Number(row.views || 0) + 1;
+
+          return (await attachPostAuthors([row]))[0];
+        }
+      );
+
+      if (!post) {
         return res.status(404).json({
           error:
             'Post not found.'
         });
       }
 
-      try {
-        await getPool().execute(
-          `
-            UPDATE posts
-            SET views = views + 1
-            WHERE id = ?
-          `,
-          [rows[0].id]
-        );
-      } catch (error) {
-        console.warn(
-          '[posts] View counter update failed:',
-          error.message
-        );
-      }
+      setPublicCacheHeaders(res, {
+        maxAge: 300,
+        sMaxAge: 600,
+        swr: 86400,
+      });
 
-      const post = rows[0];
-      post.views = Number(post.views || 0) + 1;
-
-      res.json((await attachPostAuthors([post]))[0]);
-
+      res.json(post);
     } catch (error) {
       console.error(
         'Fetch post error:',
@@ -1297,43 +1736,63 @@ app.get(
     try {
       const normalizedSlug = String(req.params.slug || '').replace(/\.html$/i, '');
 
-      const [rows] = await getPool().query(
-        `
+      const cacheKey = 'pub:post:slug:' + normalizedSlug;
+
+      const post = await withCache(
+        cacheKey,
+        PUBLIC_CACHE_TTL.postDetail,
+        async () => {
+          const [rows] = await getPool().query(
+            `
           SELECT *
           FROM posts
           WHERE slug = ?
             AND status = 'approved'
           LIMIT 1
         `,
-        [normalizedSlug]
+            [normalizedSlug]
+          );
+
+          if (!rows.length) {
+            return null;
+          }
+
+          try {
+            await getPool().execute(
+              `
+            UPDATE posts
+            SET views = views + 1
+            WHERE id = ?
+          `,
+              [rows[0].id]
+            );
+          } catch (error) {
+            console.warn(
+              '[posts] View counter update failed:',
+              error.message
+            );
+          }
+
+          const row = rows[0];
+          row.views = Number(row.views || 0) + 1;
+
+          return (await attachPostAuthors([row]))[0];
+        }
       );
 
-      if (!rows.length) {
+      if (!post) {
         return res.status(404).json({
           error: 'Post not found.'
         });
       }
 
-      try {
-        await getPool().execute(
-          `
-            UPDATE posts
-            SET views = views + 1
-            WHERE id = ?
-          `,
-          [rows[0].id]
-        );
-      } catch (error) {
-        console.warn(
-          '[posts] View counter update failed:',
-          error.message
-        );
-      }
+      setPublicCacheHeaders(res, {
+        maxAge: 300,
+        sMaxAge: 600,
+        swr: 86400,
+      });
 
-      const post = rows[0];
-      post.views = Number(post.views || 0) + 1;
-
-      res.json((await attachPostAuthors([post]))[0]);
+      res.json(post);
     } catch (error) {
       console.error('Fetch post by slug error:', error);
       res.status(500).json({
@@ -1373,8 +1832,13 @@ app.get(
       const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://rubavutoday.com';
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
 
-      const rawTitle = post.title || 'Rubavu Today';
-      const rawDescription = getArticleDescription(post, rawTitle);
+      const rawTitle =
+        post.seo_title || post.title || 'Rubavu Today';
+      const rawDescription = getArticleDescription(
+        post,
+        rawTitle,
+        post.seo_description || post.excerpt
+      );
       const ogImage = getArticleImageUrl(
         post.image || post.image_url || post.imageUrl || post.featured_image,
         backendUrl
@@ -1410,6 +1874,9 @@ app.get(
       const metaTags = [
         `<title>${escaped.title} | Rubavu Today</title>`,
         `<meta name="description" content="${escaped.description}" />`,
+        post.seo_keywords
+          ? `<meta name="keywords" content="${escapeHtml(String(post.seo_keywords).slice(0, 500))}" />`
+          : "",
         `<meta name="robots" content="index, follow" />`,
         `<link rel="canonical" href="${escaped.canonicalUrl}" />`,
         `<link rel="icon" type="image/jpeg" href="https://rubavutoday.com/favicon.jpg" />`,
@@ -1531,8 +1998,14 @@ app.get(
         backendUrl
       );
 
-      const title = escapeHtml(post.title || 'Rubavu Today');
-      const description = escapeHtml(getArticleDescription(post, post.title || 'Rubavu Today'));
+      const title = escapeHtml(post.seo_title || post.title || 'Rubavu Today');
+      const description = escapeHtml(
+        getArticleDescription(
+          post,
+          post.title || 'Rubavu Today',
+          post.seo_description || post.excerpt
+        )
+      );
       const ogImageEscaped = escapeHtml(ogImage);
       const author = escapeHtml(post.Author || 'Rubavu Today');
       const category = escapeHtml(post.category || '');
@@ -1543,6 +2016,9 @@ app.get(
       const metaTags = [
         `<title>${title} | Rubavu Today</title>`,
         `<meta name="description" content="${description}" />`,
+        post.seo_keywords
+          ? `<meta name="keywords" content="${escapeHtml(String(post.seo_keywords).slice(0, 500))}" />`
+          : "",
         `<meta name="robots" content="index, follow" />`,
         `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
         `<link rel="icon" type="image/jpeg" href="https://rubavutoday.com/favicon.jpg" />`,
@@ -1564,8 +2040,12 @@ app.get(
         post,
         canonical,
         ogImage,
-        post.title || 'Rubavu Today',
-        getArticleDescription(post, post.title || 'Rubavu Today')
+        post.seo_title || post.title || 'Rubavu Today',
+        getArticleDescription(
+          post,
+          post.title || 'Rubavu Today',
+          post.seo_description || post.excerpt
+        )
       );
 
       if (publishedTime) {
@@ -1670,7 +2150,16 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-function getArticleDescription(post, title) {
+function getArticleDescription(post, title, seoDescription) {
+  const preferred = String(seoDescription || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (preferred) {
+    return preferred.slice(0, 200);
+  }
+
   const rawDescription = String(post.description || post.summary || '')
     .replace(/<[^>]*>/g, '')
     .replace(/\s+/g, ' ')
@@ -1740,6 +2229,61 @@ app.get(
           `
         );
 
+      const [[draftsResult]] =
+        await pool.query(
+          `
+            SELECT COUNT(*) AS total
+            FROM posts
+            WHERE status = 'draft'
+          `
+        );
+
+      const [[viewsResult]] =
+        await pool.query(
+          `
+            SELECT COALESCE(SUM(views), 0) AS total
+            FROM posts
+          `
+        );
+
+      const [[submissionsResult]] =
+        await pool.query(
+          `
+            SELECT COUNT(*) AS total
+            FROM posts
+            WHERE Author IN (SELECT full_name FROM employees)
+          `
+        );
+
+      const [[correctionsResult]] =
+        await pool.query(
+          `
+            SELECT COUNT(*) AS total
+            FROM posts
+            WHERE status = 'rejected'
+          `
+        );
+
+      const [[approvedTodayResult]] =
+        await pool.query(
+          `
+            SELECT COUNT(*) AS total
+            FROM post_status_history
+            WHERE new_status = 'approved'
+              AND DATE(created_at) = CURDATE()
+          `
+        );
+
+      const [[rejectedTodayResult]] =
+        await pool.query(
+          `
+            SELECT COUNT(*) AS total
+            FROM post_status_history
+            WHERE new_status = 'rejected'
+              AND DATE(created_at) = CURDATE()
+          `
+        );
+
       const [pendingPosts] =
         await pool.query(
           `
@@ -1773,6 +2317,41 @@ app.get(
             rejectedResult.total
           ),
 
+        drafts:
+          Number(
+            draftsResult.total
+          ),
+
+        totalViews:
+          Number(
+            viewsResult.total
+          ),
+
+        totalSubmissions:
+          Number(
+            submissionsResult.total
+          ),
+
+        pendingCorrections:
+          Number(
+            correctionsResult.total
+          ),
+
+        approvedToday:
+          Number(
+            approvedTodayResult.total
+          ),
+
+        rejectedToday:
+          Number(
+            rejectedTodayResult.total
+          ),
+
+        publishedToday:
+          Number(
+            approvedTodayResult.total
+          ),
+
         pendingPosts
       });
 
@@ -1800,29 +2379,21 @@ app.get(
   requirePostManagement,
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
-            SELECT
-              p.*,
-              p.Author AS author_name
-            FROM posts p
-            ORDER BY
-              CASE
-                WHEN p.status = 'pending'
-                  THEN 1
-                WHEN p.status = 'approved'
-                  THEN 2
-                WHEN p.status = 'rejected'
-                  THEN 3
-                ELSE 4
-              END,
-              p.id DESC
-          `
-        );
+      const filters = parsePostListFilters(req);
+
+      const { rows, total, page, limit } = await queryPostList({ filters });
+
+      if (filters.hasPaging) {
+        return res.json({
+          posts: rows,
+          total,
+          page,
+          pageCount: Math.ceil(total / limit),
+          limit,
+        });
+      }
 
       res.json(rows);
-
     } catch (error) {
       console.error(
         'Admin/Chief Editor fetch all posts error:',
@@ -1843,20 +2414,24 @@ app.get(
   requirePostManagement,
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
-            SELECT
-              p.*,
-              p.Author AS author_name
-            FROM posts p
-            WHERE p.status = 'pending'
-            ORDER BY p.id DESC
-          `
-        );
+      const filters = parsePostListFilters(req);
+
+      const { rows, total, page, limit } = await queryPostList({
+        fixedWhere: "p.status = 'pending'",
+        filters,
+      });
+
+      if (filters.hasPaging) {
+        return res.json({
+          posts: rows,
+          total,
+          page,
+          pageCount: Math.ceil(total / limit),
+          limit,
+        });
+      }
 
       res.json(rows);
-
     } catch (error) {
       console.error(
         'Admin/Chief Editor pending posts error:',
@@ -1918,29 +2493,21 @@ app.get(
   requirePostManagement,
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
-            SELECT
-              p.*,
-              p.Author AS author_name
-            FROM posts p
-            ORDER BY
-              CASE
-                WHEN p.status = 'pending'
-                  THEN 1
-                WHEN p.status = 'approved'
-                  THEN 2
-                WHEN p.status = 'rejected'
-                  THEN 3
-                ELSE 4
-              END,
-              p.id DESC
-          `
-        );
+      const filters = parsePostListFilters(req);
+
+      const { rows, total, page, limit } = await queryPostList({ filters });
+
+      if (filters.hasPaging) {
+        return res.json({
+          posts: rows,
+          total,
+          page,
+          pageCount: Math.ceil(total / limit),
+          limit,
+        });
+      }
 
       res.json(rows);
-
     } catch (error) {
       console.error(
         'Chief Editor/Admin fetch posts error:',
@@ -1961,20 +2528,24 @@ app.get(
   requirePostManagement,
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
-            SELECT
-              p.*,
-              p.Author AS author_name
-            FROM posts p
-            WHERE p.status = 'pending'
-            ORDER BY p.id DESC
-          `
-        );
+      const filters = parsePostListFilters(req);
+
+      const { rows, total, page, limit } = await queryPostList({
+        fixedWhere: "p.status = 'pending'",
+        filters,
+      });
+
+      if (filters.hasPaging) {
+        return res.json({
+          posts: rows,
+          total,
+          page,
+          pageCount: Math.ceil(total / limit),
+          limit,
+        });
+      }
 
       res.json(rows);
-
     } catch (error) {
       console.error(
         'Chief Editor/Admin pending posts error:',
@@ -2054,7 +2625,8 @@ app.put(
             status = 'approved',
             rejection_reason = NULL,
             approved_by = ?,
-            approved_at = NOW()
+            approved_at = NOW(),
+            published_at = COALESCE(published_at, NOW())
           WHERE id = ?
         `,
         [
@@ -2073,11 +2645,39 @@ app.put(
           [id]
         );
 
+      await recordStatusHistory({
+        postId: id,
+        actorRole: req.user.role_type,
+        actorName: approverName,
+        previousStatus: existing.status,
+        newStatus: 'approved',
+      });
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: approverName,
+        action: 'post.approve',
+        targetType: 'post',
+        targetId: id,
+        targetTitle: existing.title,
+        previousValue: existing.status,
+        newValue: 'approved',
+      });
+
       await notifyPostAuthor(existing, {
         type: 'approved',
         title: 'Inkuru yemejwe',
         message: `${approverName} yemeje inkuru yawe: ${existing.title}. Isanzwe ku rubuga rwa Rubavu Today.`,
       });
+
+      await notifyAdmins({
+        type: 'approved',
+        title: 'Inkuru yemejwe',
+        message: `${approverName} yemeje inkuru: ${existing.title}`,
+        postId: id,
+      });
+
+      await invalidateContentCaches();
 
       res.json({
         message:
@@ -2157,7 +2757,8 @@ app.put(
             status = 'rejected',
             rejection_reason = ?,
             approved_by = NULL,
-            approved_at = NULL
+            approved_at = NULL,
+            published_at = NULL
           WHERE id = ?
         `,
         [
@@ -2176,11 +2777,40 @@ app.put(
           [id]
         );
 
+      await recordStatusHistory({
+        postId: id,
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        previousStatus: existing.status,
+        newStatus: 'rejected',
+        reason: rejectionReason,
+      });
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'post.reject',
+        targetType: 'post',
+        targetId: id,
+        targetTitle: existing.title,
+        previousValue: existing.status,
+        newValue: 'rejected',
+      });
+
       await notifyPostAuthor(existing, {
         type: 'rejected',
         title: 'Inkuru yanzwe',
         message: `Inkuru yawe yanzwe. Igisubizo: ${rejectionReason}`,
       });
+
+      await notifyAdmins({
+        type: 'rejected',
+        title: 'Inkuru yanzwe',
+        message: `${req.user.full_name || 'Chief Editor'} yanze inkuru: ${existing.title}. Impamvu: ${rejectionReason}`,
+        postId: id,
+      });
+
+      await invalidateContentCaches();
 
       res.json({
         message:
@@ -2265,11 +2895,32 @@ app.put(
           [id]
         );
 
+      await recordStatusHistory({
+        postId: id,
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        previousStatus: existing.status,
+        newStatus: 'pending',
+      });
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'post.review',
+        targetType: 'post',
+        targetId: id,
+        targetTitle: existing.title,
+        previousValue: existing.status,
+        newValue: 'pending',
+      });
+
       await notifyPostAuthor(existing, {
         type: 'feedback',
         title: 'Inkuru isubijwe ku ntego',
         message: `Inkuru yawe: ${existing.title}, yasubijwe gukurikirana. Nyungure hanyuma usubire uyitange.`,
       });
+
+      await invalidateContentCaches();
 
       res.json({
         message:
@@ -2314,6 +2965,11 @@ app.post(
         tags,
         location,
         summary,
+        subtitle,
+        excerpt,
+        seo_title,
+        seo_description,
+        seo_keywords,
         status
       } = req.body;
 
@@ -2504,6 +3160,30 @@ app.post(
         ? String(summary).slice(0, 2000)
         : null;
 
+      const subtitleValue = subtitle !== undefined && String(subtitle).trim()
+        ? String(subtitle).slice(0, 500)
+        : null;
+
+      const excerptValue = excerpt !== undefined && String(excerpt).trim()
+        ? String(excerpt).slice(0, 2000)
+        : null;
+
+      const seoTitleValue = seo_title !== undefined && String(seo_title).trim()
+        ? String(seo_title).slice(0, 255)
+        : null;
+
+      const seoDescriptionValue = seo_description !== undefined && String(seo_description).trim()
+        ? String(seo_description).slice(0, 2000)
+        : null;
+
+      const seoKeywordsValue = seo_keywords !== undefined && String(seo_keywords).trim()
+        ? String(seo_keywords).slice(0, 500)
+        : null;
+
+      const publishedAtValue = postStatus === 'approved'
+        ? new Date()
+        : null;
+
       const [result] =
         await getPool().execute(
           `
@@ -2524,11 +3204,17 @@ app.post(
               tags,
               location,
               summary,
+              subtitle,
+              excerpt,
+              seo_title,
+              seo_description,
+              seo_keywords,
+              published_at,
               rejection_reason,
               approved_by,
               approved_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
           `,
           [
             String(title).trim(),
@@ -2546,6 +3232,12 @@ app.post(
             tagsValue,
             locationValue,
             summaryValue,
+            subtitleValue,
+            excerptValue,
+            seoTitleValue,
+            seoDescriptionValue,
+            seoKeywordsValue,
+            publishedAtValue,
             approvedBy,
             approvedAt
           ]
@@ -2578,6 +3270,25 @@ app.post(
           String(title).trim(),
           authorName
         );
+
+        await notifyAdmins({
+          type: 'submitted',
+          title: 'Inkuru nshya yatanzwe',
+          message: `${authorName} yatanze inkuru: ${String(title).trim()}`,
+          postId: result.insertId,
+        });
+      }
+
+      await recordStatusHistory({
+        postId: result.insertId,
+        actorRole: req.user.role_type,
+        actorName: authorName || req.user.full_name || req.user.email,
+        previousStatus: null,
+        newStatus: postStatus,
+      });
+
+      if (postStatus === 'approved') {
+        await invalidateContentCaches();
       }
 
       res.status(201).json({
@@ -2633,6 +3344,11 @@ app.put(
         tags,
         location,
         summary,
+        subtitle,
+        excerpt,
+        seo_title,
+        seo_description,
+        seo_keywords,
         status
       } = req.body;
 
@@ -2956,6 +3672,30 @@ app.put(
         ? (String(summary).trim() ? String(summary).slice(0, 2000) : null)
         : existing.summary || null;
 
+      const subtitleValue = subtitle !== undefined
+        ? (String(subtitle).trim() ? String(subtitle).slice(0, 500) : null)
+        : existing.subtitle || null;
+
+      const excerptValue = excerpt !== undefined
+        ? (String(excerpt).trim() ? String(excerpt).slice(0, 2000) : null)
+        : existing.excerpt || null;
+
+      const seoTitleValue = seo_title !== undefined
+        ? (String(seo_title).trim() ? String(seo_title).slice(0, 255) : null)
+        : existing.seo_title || null;
+
+      const seoDescriptionValue = seo_description !== undefined
+        ? (String(seo_description).trim() ? String(seo_description).slice(0, 2000) : null)
+        : existing.seo_description || null;
+
+      const seoKeywordsValue = seo_keywords !== undefined
+        ? (String(seo_keywords).trim() ? String(seo_keywords).slice(0, 500) : null)
+        : existing.seo_keywords || null;
+
+      const publishedAtValue = updatedStatus === 'approved'
+        ? (existing.published_at || new Date())
+        : null;
+
       await pool.execute(
         `
           UPDATE posts
@@ -2973,6 +3713,12 @@ app.put(
             tags = ?,
             location = ?,
             summary = ?,
+            subtitle = ?,
+            excerpt = ?,
+            seo_title = ?,
+            seo_description = ?,
+            seo_keywords = ?,
+            published_at = ?,
             updated_at = NOW(),
             rejection_reason = ?,
             approved_by = ?,
@@ -3010,6 +3756,18 @@ app.put(
 
           summaryValue,
 
+          subtitleValue,
+
+          excerptValue,
+
+          seoTitleValue,
+
+          seoDescriptionValue,
+
+          seoKeywordsValue,
+
+          publishedAtValue,
+
           rejectionReason,
 
           approvedBy,
@@ -3039,7 +3797,52 @@ app.put(
           incomingTitle,
           updatedAuthor || req.user.full_name || req.user.email
         );
+
+        await notifyAdmins({
+          type: 'submitted',
+          title: 'Inkuru yasubijwe',
+          message: `${updatedAuthor || req.user.full_name || req.user.email} yasubije inkuru: ${incomingTitle}`,
+          postId: id,
+        });
       }
+
+      if (
+        updatedStatus !== existing.status
+      ) {
+        const reasonForHistory =
+          updatedStatus === 'rejected'
+            ? (req.body?.reason
+              ? String(req.body.reason).trim()
+              : existing.rejection_reason || null)
+            : null;
+
+        await recordStatusHistory({
+          postId: id,
+          actorRole: req.user.role_type,
+          actorName: req.user.full_name || req.user.email,
+          previousStatus: existing.status,
+          newStatus: updatedStatus,
+          reason: reasonForHistory,
+        });
+
+        if (
+          req.user.role_type === 'admin' ||
+          req.user.role_type === 'chief_editor'
+        ) {
+          await recordAudit({
+            actorRole: req.user.role_type,
+            actorName: req.user.full_name || req.user.email,
+            action: 'post.status',
+            targetType: 'post',
+            targetId: id,
+            targetTitle: incomingTitle,
+            previousValue: existing.status,
+            newValue: updatedStatus,
+          });
+        }
+      }
+
+      await invalidateContentCaches();
 
       res.json({
         message:
@@ -3148,6 +3951,23 @@ app.delete(
         [id]
       );
 
+      if (
+        req.user.role_type === 'admin' ||
+        req.user.role_type === 'chief_editor'
+      ) {
+        await recordAudit({
+          actorRole: req.user.role_type,
+          actorName: req.user.full_name || req.user.email,
+          action: 'post.delete',
+          targetType: 'post',
+          targetId: id,
+          targetTitle: existing[0].Author || String(id),
+          previousValue: `status=${existing[0].status || 'unknown'}`,
+        });
+      }
+
+      await invalidateContentCaches();
+
       res.json({
         message:
           'Post deleted successfully.'
@@ -3190,16 +4010,23 @@ app.get(
         req.user.full_name ||
         req.user.email;
 
-      const [rows] =
-        await getPool().query(
-          `
-            SELECT *
-            FROM posts
-            WHERE Author = ?
-            ORDER BY id DESC
-          `,
-          [authorName]
-        );
+      const filters = parsePostListFilters(req);
+
+      const { rows, total, page, limit } = await queryPostList({
+        fixedWhere: 'p.Author = ?',
+        fixedParams: [authorName],
+        filters,
+      });
+
+      if (filters.hasPaging) {
+        return res.json({
+          posts: rows,
+          total,
+          page,
+          pageCount: Math.ceil(total / limit),
+          limit,
+        });
+      }
 
       res.json(rows);
 
@@ -3397,6 +4224,342 @@ app.put(
         error:
           'Unable to update notifications.'
       });
+    }
+  }
+);
+
+/* =========================================================
+   CATEGORIES
+   Public read of the canonical category list + admin CRUD.
+   posts.category remains a plain string for compatibility.
+========================================================= */
+
+app.get(
+  '/api/categories',
+  async (req, res) => {
+    try {
+      const rows = await withCache(
+        'pub:categories',
+        PUBLIC_CACHE_TTL.categories,
+        async () => {
+          const [result] = await getPool().query(
+            `
+          SELECT
+            c.id,
+            c.name,
+            c.slug,
+            c.icon,
+            c.color,
+            c.description,
+            c.sort_order,
+            c.active,
+            COUNT(p.id) AS postCount
+          FROM categories c
+          LEFT JOIN posts p ON p.category = c.name
+          WHERE c.active = 1
+          GROUP BY c.id, c.name, c.slug, c.icon, c.color, c.description, c.sort_order, c.active
+          ORDER BY c.sort_order ASC, c.id ASC
+        `
+          );
+
+          return result;
+        }
+      );
+
+      setPublicCacheHeaders(res, {
+        maxAge: 600,
+        sMaxAge: 1800,
+        swr: 3600,
+      });
+
+      res.json(rows);
+    } catch (error) {
+      console.error('Fetch categories error:', error);
+      res.status(500).json({
+        error: 'Unable to fetch categories.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/categories/:slug',
+  async (req, res) => {
+    try {
+      const { slug } = req.params;
+
+      const body = await withCache(
+        'pub:category:' + String(slug),
+        PUBLIC_CACHE_TTL.categoryDetail,
+        async () => {
+          const [rows] = await getPool().query(
+            `
+          SELECT
+            c.id,
+            c.name,
+            c.slug,
+            c.icon,
+            c.color,
+            c.description,
+            c.sort_order,
+            c.active,
+            COUNT(p.id) AS postCount
+          FROM categories c
+          LEFT JOIN posts p ON p.category = c.name AND p.status = 'approved'
+          WHERE c.slug = ? AND c.active = 1
+          GROUP BY c.id, c.name, c.slug, c.icon, c.color, c.description, c.sort_order, c.active
+          LIMIT 1
+        `,
+            [String(slug)]
+          );
+
+          if (!rows.length) {
+            return { notFound: true };
+          }
+
+          const category = rows[0];
+
+          const { rows: postRows } = await queryPostList({
+            fixedWhere: "p.status = 'approved'",
+            filters: addMaxRowsFilter({
+              category: category.name,
+            }),
+            selectFields: `
+          p.id,
+          p.title,
+          p.slug,
+          p.category,
+          p.image,
+          p.createdDate,
+          p.youtube_url,
+          p.Author,
+          p.author_profile_image,
+          p.status,
+          SUBSTRING(p.description, 1, 400) AS description
+        `,
+          });
+
+          const posts = await attachPostAuthors(postRows);
+
+          return { category, posts };
+        }
+      );
+
+      if (body.notFound) {
+        return res.status(404).json({ error: 'Category not found.' });
+      }
+
+      setPublicCacheHeaders(res, {
+        maxAge: 300,
+        sMaxAge: 600,
+        swr: 1200,
+      });
+
+      res.json(body);
+    } catch (error) {
+      console.error('Fetch category error:', error);
+      res.status(500).json({ error: 'Unable to fetch category.' });
+    }
+  }
+);
+
+app.post(
+  '/api/categories',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { name, slug, icon, color, description, sort_order, active } = req.body || {};
+
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'Category name is required.' });
+      }
+
+      const categoryName = String(name).trim().slice(0, 100);
+      const categorySlug = String(slug || '').trim() || slugifyTitle(categoryName);
+
+      await getPool().execute(
+        `
+          INSERT INTO categories (name, slug, icon, color, description, sort_order, active)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          categoryName,
+          categorySlug,
+          icon ? String(icon).slice(0, 64) : null,
+          color ? String(color).slice(0, 100) : null,
+          description ? String(description).slice(0, 500) : null,
+          Number.isFinite(Number(sort_order)) ? Number(sort_order) : 0,
+          active === false || active === 0 ? 0 : 1,
+        ]
+      );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'category.create',
+        targetType: 'category',
+        targetTitle: categoryName,
+        newValue: categoryName,
+      });
+
+      await invalidateCategories();
+
+      res.status(201).json({ message: 'Category created successfully.' });
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'A category with that name or slug already exists.' });
+      }
+      console.error('Create category error:', error);
+      res.status(500).json({ error: 'Unable to create category.' });
+    }
+  }
+);
+
+app.put(
+  '/api/categories/:id',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, slug, icon, color, description, sort_order, active } = req.body || {};
+
+      const [existingRows] = await getPool().query(
+        `SELECT * FROM categories WHERE id = ? LIMIT 1`,
+        [id]
+      );
+
+      if (!existingRows.length) {
+        return res.status(404).json({ error: 'Category not found.' });
+      }
+
+      const existing = existingRows[0];
+      const newName = name !== undefined ? String(name).trim().slice(0, 100) : existing.name;
+      const newSlug = slug !== undefined ? String(slug).trim() : existing.slug;
+      const newIcon = icon !== undefined
+        ? (String(icon).trim() ? String(icon).slice(0, 64) : null)
+        : existing.icon;
+      const newColor = color !== undefined
+        ? (String(color).trim() ? String(color).slice(0, 100) : null)
+        : existing.color;
+      const newDescription = description !== undefined
+        ? (String(description).trim() ? String(description).slice(0, 500) : null)
+        : existing.description;
+      const newSortOrder = sort_order !== undefined
+        ? (Number.isFinite(Number(sort_order)) ? Number(sort_order) : existing.sort_order)
+        : existing.sort_order;
+      const newActive = active !== undefined ? (active === false || active === 0 ? 0 : 1) : existing.active;
+
+      await getPool().execute(
+        `
+          UPDATE categories
+          SET name = ?, slug = ?, icon = ?, color = ?, description = ?, sort_order = ?, active = ?
+          WHERE id = ?
+        `,
+        [newName, newSlug || slugifyTitle(newName), newIcon, newColor, newDescription, newSortOrder, newActive, id]
+      );
+
+      if (newName !== existing.name) {
+        await getPool().execute(
+          `UPDATE posts SET category = ? WHERE category = ?`,
+          [newName, existing.name]
+        );
+      }
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'category.update',
+        targetType: 'category',
+        targetId: id,
+        targetTitle: existing.name,
+        previousValue: existing.name,
+        newValue: newName,
+      });
+
+      await invalidateCategories();
+
+      res.json({ message: 'Category updated successfully.' });
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'A category with that name or slug already exists.' });
+      }
+      console.error('Update category error:', error);
+      res.status(500).json({ error: 'Unable to update category.' });
+    }
+  }
+);
+
+app.delete(
+  '/api/categories/:id',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const [existingRows] = await getPool().query(
+        `SELECT * FROM categories WHERE id = ? LIMIT 1`,
+        [id]
+      );
+
+      if (!existingRows.length) {
+        return res.status(404).json({ error: 'Category not found.' });
+      }
+
+      const existing = existingRows[0];
+
+      const [postRows] = await getPool().query(
+        `SELECT COUNT(*) AS count FROM posts WHERE category = ?`,
+        [existing.name]
+      );
+
+      const inUse = Number(postRows[0]?.count || 0) > 0;
+
+      if (inUse) {
+        await getPool().execute(
+          `UPDATE categories SET active = 0 WHERE id = ?`,
+          [id]
+        );
+
+        await recordAudit({
+          actorRole: req.user.role_type,
+          actorName: req.user.full_name || req.user.email,
+          action: 'category.update',
+          targetType: 'category',
+          targetId: id,
+          targetTitle: existing.name,
+          previousValue: 'active',
+          newValue: 'inactive (in use, kept for existing posts)',
+        });
+
+        await invalidateCategories();
+
+        return res.json({ message: 'Icyiciro gikoreshwa, nuko cyahagaritswe mu mbuga ngororamubiri ariko cyakomeje ku nkuru zisanzwe.' });
+      }
+
+      await getPool().execute(
+        `DELETE FROM categories WHERE id = ?`,
+        [id]
+      );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'category.delete',
+        targetType: 'category',
+        targetId: id,
+        targetTitle: existingRows[0].name,
+        previousValue: existingRows[0].name,
+      });
+
+      await invalidateCategories();
+
+      res.json({ message: 'Category deleted successfully.' });
+    } catch (error) {
+      console.error('Delete category error:', error);
+      res.status(500).json({ error: 'Unable to delete category.' });
     }
   }
 );
@@ -3995,6 +5158,222 @@ app.delete(
 );
 
 /* =========================================================
+   ADMIN AUDIT LOG
+   Paginated, filterable read of the audit trail.
+========================================================= */
+
+app.get(
+  '/api/admin/audit-log',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const pool = getPool();
+
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
+      const action = req.query.action ? String(req.query.action).trim() : '';
+      const actor = req.query.actor ? String(req.query.actor).trim() : '';
+      const targetType = req.query.target_type ? String(req.query.target_type).trim() : '';
+      const from = req.query.from ? String(req.query.from).trim() : '';
+      const to = req.query.to ? String(req.query.to).trim() : '';
+
+      const conditions = ['1=1'];
+      const params = [];
+
+      if (action) {
+        conditions.push('action = ?');
+        params.push(action);
+      }
+
+      if (actor) {
+        conditions.push('actor_name LIKE ?');
+        params.push(`%${actor}%`);
+      }
+
+      if (targetType) {
+        conditions.push('target_type = ?');
+        params.push(targetType);
+      }
+
+      if (from) {
+        conditions.push('created_at >= ?');
+        params.push(from);
+      }
+
+      if (to) {
+        conditions.push('created_at <= ?');
+        params.push(to);
+      }
+
+      const whereSql = conditions.join(' AND ');
+      const offset = (page - 1) * limit;
+
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM audit_log WHERE ${whereSql}`,
+        params
+      );
+
+      const [rows] = await pool.query(
+        `
+          SELECT id, actor_role, actor_name, action, target_type, target_id, target_title,
+                 previous_value, new_value, created_at
+          FROM audit_log
+          WHERE ${whereSql}
+          ORDER BY id DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `,
+        params
+      );
+
+      res.json({
+        entries: rows,
+        total,
+        page,
+        pageCount: Math.max(Math.ceil(total / limit), 1),
+        limit,
+      });
+    } catch (error) {
+      console.error('Audit log fetch error:', error);
+      res.status(500).json({ error: 'Unable to fetch audit log.' });
+    }
+  }
+);
+
+/* =========================================================
+   ADMIN REPORTS
+   Aggregations used by the admin Reports dashboard.
+========================================================= */
+
+app.get(
+  '/api/admin/reports',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const pool = getPool();
+
+      const [byEmployee] = await pool.query(
+        `
+          SELECT
+            Author AS author,
+            COUNT(*) AS total,
+            SUM(status = 'pending') AS pending,
+            SUM(status = 'approved') AS approved,
+            SUM(status = 'rejected') AS rejected,
+            SUM(status = 'draft') AS drafts,
+            COALESCE(SUM(views), 0) AS views
+          FROM posts
+          GROUP BY Author
+          ORDER BY total DESC
+          LIMIT 100
+        `
+      );
+
+      const [byCategory] = await pool.query(
+        `
+          SELECT
+            category,
+            COUNT(*) AS total,
+            COALESCE(SUM(views), 0) AS views
+          FROM posts
+          GROUP BY category
+          ORDER BY total DESC
+        `
+      );
+
+      const [byStatus] = await pool.query(
+        `
+          SELECT
+            status,
+            COUNT(*) AS total
+          FROM posts
+          GROUP BY status
+          ORDER BY total DESC
+        `
+      );
+
+      const [byMonth] = await pool.query(
+        `
+          SELECT
+            DATE_FORMAT(createdDate, '%Y-%m') AS month,
+            COUNT(*) AS total,
+            COALESCE(SUM(views), 0) AS views
+          FROM posts
+          WHERE DATE_FORMAT(createdDate, '%Y-%m') >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 12 MONTH), '%Y-%m')
+          GROUP BY month
+          ORDER BY month ASC
+        `
+      );
+
+      const [activity] = await pool.query(
+        `
+          SELECT
+            DATE(created_at) AS day,
+            COUNT(*) AS total
+          FROM post_status_history
+          WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+          GROUP BY day
+          ORDER BY day ASC
+        `
+      );
+
+      const [[totals]] = await pool.query(
+        `
+          SELECT
+            COUNT(*) AS total,
+            SUM(status = 'pending') AS pending,
+            SUM(status = 'approved') AS approved,
+            SUM(status = 'rejected') AS rejected,
+            SUM(status = 'draft') AS drafts,
+            COALESCE(SUM(views), 0) AS views
+          FROM posts
+        `
+      );
+
+      const [auditRecent] = await pool.query(
+        `
+          SELECT
+            actor_role,
+            actor_name,
+            action,
+            target_type,
+            target_title,
+            previous_value,
+            new_value,
+            created_at
+          FROM audit_log
+          ORDER BY id DESC
+          LIMIT 50
+        `
+      );
+
+      res.json({
+        totals: {
+          total: Number(totals.total || 0),
+          pending: Number(totals.pending || 0),
+          approved: Number(totals.approved || 0),
+          rejected: Number(totals.rejected || 0),
+          drafts: Number(totals.drafts || 0),
+          views: Number(totals.views || 0),
+        },
+        byEmployee,
+        byCategory,
+        byStatus,
+        byMonth,
+        activity,
+        auditRecent,
+      });
+    } catch (error) {
+      console.error('Admin reports error:', error);
+      res.status(500).json({
+        error: 'Unable to fetch reports.'
+      });
+    }
+  }
+);
+
+/* =========================================================
    ADVERTISEMENTS
 ========================================================= */
 
@@ -4002,14 +5381,28 @@ app.get(
   '/api/advertisements',
   async (req, res) => {
     try {
-      const [rows] =
-        await getPool().query(
-          `
+      const rows = await withCache(
+        'pub:ads',
+        PUBLIC_CACHE_TTL.ads,
+        async () => {
+          const [result] =
+            await getPool().query(
+              `
             SELECT *
             FROM advertisements
             ORDER BY id DESC
           `
-        );
+            );
+
+          return result;
+        }
+      );
+
+      setPublicCacheHeaders(res, {
+        maxAge: 120,
+        sMaxAge: 600,
+        swr: 600,
+      });
 
       res.json(rows);
 
@@ -4135,6 +5528,18 @@ app.post(
           `,
           [result.insertId]
         );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'advertisement.create',
+        targetType: 'advertisement',
+        targetId: result.insertId,
+        targetTitle: String(title).trim(),
+        newValue: `${finalPosition} | ${finalStatus}`,
+      });
+
+      await invalidateAdvertisements();
 
       res.status(201).json(
         rows[0]
@@ -4322,6 +5727,19 @@ app.put(
           [id]
         );
 
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'advertisement.update',
+        targetType: 'advertisement',
+        targetId: id,
+        targetTitle: existing.title,
+        previousValue: `${existing.position || 'sidebar'} | ${existing.status || 'active'}`,
+        newValue: `${finalPosition} | ${finalStatus}`,
+      });
+
+      await invalidateAdvertisements();
+
       res.json(rows[0]);
 
     } catch (error) {
@@ -4355,7 +5773,7 @@ app.delete(
       const [existing] =
         await pool.query(
           `
-            SELECT id
+            SELECT id, title
             FROM advertisements
             WHERE id = ?
           `,
@@ -4376,6 +5794,18 @@ app.delete(
         `,
         [id]
       );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'advertisement.delete',
+        targetType: 'advertisement',
+        targetId: id,
+        targetTitle: existing[0].title,
+        previousValue: existing[0].title,
+      });
+
+      await invalidateAdvertisements();
 
       res.json({
         message:
@@ -4588,6 +6018,16 @@ app.post(
           [result.insertId]
         );
 
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'employee.create',
+        targetType: 'employee',
+        targetId: result.insertId,
+        targetTitle: cleanName,
+        newValue: cleanEmail,
+      });
+
       res.status(201).json({
         message:
           'Employee created successfully.',
@@ -4779,6 +6219,17 @@ app.put(
           [id]
         );
 
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'employee.update',
+        targetType: 'employee',
+        targetId: id,
+        targetTitle: existing.full_name,
+        previousValue: `${existing.email} | ${existing.status || 'active'}`,
+        newValue: `${updatedEmail} | ${updatedStatus}`,
+      });
+
       res.json({
         message:
           'Employee updated successfully.',
@@ -4838,6 +6289,16 @@ app.delete(
         `,
         [id]
       );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'employee.delete',
+        targetType: 'employee',
+        targetId: id,
+        targetTitle: existingRows[0].full_name || existingRows[0].email,
+        previousValue: existingRows[0].email,
+      });
 
       res.json({
         message:
@@ -5028,6 +6489,16 @@ app.post(
           [result.insertId]
         );
 
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'chief_editor.create',
+        targetType: 'chief_editor',
+        targetId: result.insertId,
+        targetTitle: cleanName,
+        newValue: cleanEmail,
+      });
+
       res.status(201).json({
         message:
           'Chief Editor created successfully.',
@@ -5193,6 +6664,17 @@ app.put(
           [id]
         );
 
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'chief_editor.update',
+        targetType: 'chief_editor',
+        targetId: id,
+        targetTitle: existing.full_name,
+        previousValue: `${existing.email} | ${existing.status || 'active'}`,
+        newValue: `${updatedEmail} | ${updatedStatus}`,
+      });
+
       res.json({
         message:
           'Chief Editor updated successfully.',
@@ -5253,6 +6735,16 @@ app.delete(
         [id]
       );
 
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'chief_editor.delete',
+        targetType: 'chief_editor',
+        targetId: id,
+        targetTitle: existingRows[0].full_name || existingRows[0].email,
+        previousValue: existingRows[0].email,
+      });
+
       res.json({
         message:
           'Chief Editor deleted successfully.'
@@ -5302,6 +6794,19 @@ app.post(
         String(email)
           .trim()
           .toLowerCase();
+
+      const clientIp =
+        req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+
+      const rateCheck =
+        checkLoginRateLimit(clientIp, cleanEmail);
+
+      if (rateCheck.blocked) {
+        return res.status(429).json({
+          error:
+            'Too many login attempts. Please wait a few minutes and try again.'
+        });
+      }
 
       let user = null;
 
@@ -5464,6 +6969,8 @@ app.post(
           'employee';
       }
 
+      clearLoginRateLimit(clientIp, cleanEmail);
+
       res.json({
         user: {
           id:
@@ -5610,7 +7117,6 @@ app.get(
 app.put(
   '/api/auth/change-password',
   requireAuth,
-  requireAdmin,
   async (req, res) => {
     try {
       const {
@@ -5650,9 +7156,19 @@ app.put(
         });
       }
 
+      const targetTable =
+        userTableForRole(req.user.role_type);
+
+      if (!targetTable) {
+        return res.status(403).json({
+          error:
+            'Your account role is not supported.'
+        });
+      }
+
       await getPool().execute(
         `
-          UPDATE admins
+          UPDATE ${targetTable}
           SET password = ?
           WHERE id = ?
         `,
@@ -5671,7 +7187,7 @@ app.put(
 
     } catch (error) {
       console.error(
-        'Change admin password error:',
+        'Change password error:',
         error
       );
 
@@ -5690,7 +7206,6 @@ app.put(
 app.put(
   '/api/auth/change-email',
   requireAuth,
-  requireAdmin,
   async (req, res) => {
     try {
       const {
@@ -5738,31 +7253,52 @@ app.put(
         });
       }
 
-      const [existing] =
-        await getPool().query(
-          `
-            SELECT id
-            FROM admins
-            WHERE email = ?
-            AND id <> ?
-            LIMIT 1
-          `,
-          [
-            cleanEmail,
-            req.user.id
-          ]
-        );
+      const targetTable =
+        userTableForRole(req.user.role_type);
 
-      if (existing.length) {
+      if (!targetTable) {
+        return res.status(403).json({
+          error:
+            'Your account role is not supported.'
+        });
+      }
+
+      const [adminMatch] = await getPool().query(
+        `SELECT id FROM admins WHERE email = ? LIMIT 1`,
+        [cleanEmail]
+      );
+
+      const [chiefMatch] = await getPool().query(
+        `SELECT id FROM chief_editors WHERE email = ? LIMIT 1`,
+        [cleanEmail]
+      );
+
+      const [employeeMatch] = await getPool().query(
+        `SELECT id FROM employees WHERE email = ? LIMIT 1`,
+        [cleanEmail]
+      );
+
+      const ownedById = req.user.role_type === 'admin'
+        ? adminMatch
+        : req.user.role_type === 'chief_editor'
+          ? chiefMatch
+          : employeeMatch;
+
+      const usedElsewhere =
+        (adminMatch.length > 0 && ownedById !== adminMatch) ||
+        (chiefMatch.length > 0 && ownedById !== chiefMatch) ||
+        (employeeMatch.length > 0 && ownedById !== employeeMatch);
+
+      if (usedElsewhere) {
         return res.status(409).json({
           error:
-            'That email is already used by another admin.'
+            'That email is already used by another account.'
         });
       }
 
       await getPool().execute(
         `
-          UPDATE admins
+          UPDATE ${targetTable}
           SET email = ?
           WHERE id = ?
         `,
@@ -5771,6 +7307,13 @@ app.put(
           req.user.id
         ]
       );
+
+      const returnedRole =
+        req.user.role_type === 'admin'
+          ? 'admin'
+          : req.user.role_type === 'chief_editor'
+            ? 'Chief Editor'
+            : req.user.role || 'Staff';
 
       res.json({
         message:
@@ -5790,17 +7333,27 @@ app.put(
             req.user.phone ||
             null,
 
+          profile_image:
+            req.user.profile_image ||
+            req.user.profile_image_url ||
+            null,
+
+          profile_image_url:
+            req.user.profile_image_url ||
+            req.user.profile_image ||
+            null,
+
           role:
-            'admin',
+            returnedRole,
 
           role_type:
-            'admin'
+            req.user.role_type
         }
       });
 
     } catch (error) {
       console.error(
-        'Change admin email error:',
+        'Change email error:',
         error
       );
 
@@ -5882,7 +7435,7 @@ app.put(
   profileUpload.single('image'),
   async (req, res) => {
     try {
-      if (!req.file) {
+      if (!req.file || !req.file.buffer) {
         return res.status(400).json({
           error: 'No image file was uploaded.'
         });
@@ -5893,21 +7446,76 @@ app.put(
         : req.user.role_type === 'chief_editor'
           ? 'chief_editors'
           : 'employees';
-      const profileImagePath = `/uploads/profiles/${req.file.filename}`;
+
+      // Upload to Cloudinary instead of the local filesystem so
+      // profile pictures survive container restarts on Render.
+      // Optimize eagerly: 400x400 fill, face-aware crop, auto
+      // format/quality so avatars are never served at full size.
+      const { secure_url, public_id } = await uploadToCloudinary(
+        req.file.buffer,
+        'rubavu-today/profiles',
+        {
+          transformation: [
+            {
+              width: 400,
+              height: 400,
+              crop: 'fill',
+              gravity: 'face',
+              fetch_format: 'auto',
+              quality: 'auto',
+            },
+          ],
+        }
+      );
+
+      // Remove the previous Cloudinary asset if one exists.
+      if (req.user.profile_image_public_id) {
+        try {
+          await cloudinary.uploader.destroy(req.user.profile_image_public_id);
+        } catch (cleanupError) {
+          console.error(
+            '[profile-image] Failed to remove previous image:',
+            cleanupError.message
+          );
+        }
+      }
 
       await getPool().execute(
         `
           UPDATE ${table}
-          SET profile_image = ?, profile_image_url = ?
+          SET profile_image = ?, profile_image_url = ?, profile_image_public_id = ?
           WHERE id = ?
         `,
-        [profileImagePath, profileImagePath, req.user.id]
+        [secure_url, secure_url, public_id, req.user.id]
       );
+
+      // Keep historical article author photos in sync so a changed
+      // profile picture also refreshes on article cards/author boxes.
+      const authorName = req.user.full_name || req.user.name || null;
+
+      if (authorName) {
+        try {
+          await getPool().execute(
+            `
+              UPDATE posts
+              SET author_profile_image = ?, author_profile_image_url = ?
+              WHERE Author = ?
+            `,
+            [secure_url, secure_url, authorName]
+          );
+        } catch (syncError) {
+          console.error(
+            '[profile-image] Failed to sync post author images:',
+            syncError.message
+          );
+        }
+      }
 
       return res.json({
         message: 'Profile image updated successfully.',
-        profile_image: profileImagePath,
-        profile_image_url: profileImagePath,
+        profile_image: secure_url,
+        profile_image_url: secure_url,
+        profile_image_public_id: public_id,
       });
     } catch (error) {
       console.error('Profile image update error:', error);
@@ -5915,8 +7523,73 @@ app.put(
         error: 'Unable to update profile image.'
       });
     }
-}
+  }
+);
 
+app.delete(
+  '/api/profile/image',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const table = req.user.role_type === 'admin'
+        ? 'admins'
+        : req.user.role_type === 'chief_editor'
+          ? 'chief_editors'
+          : 'employees';
+
+      if (req.user.profile_image_public_id) {
+        try {
+          await cloudinary.uploader.destroy(req.user.profile_image_public_id);
+        } catch (cleanupError) {
+          console.error(
+            '[profile-image] Failed to remove Cloudinary asset:',
+            cleanupError.message
+          );
+        }
+      }
+
+      await getPool().execute(
+        `
+          UPDATE ${table}
+          SET profile_image = NULL, profile_image_url = NULL, profile_image_public_id = NULL
+          WHERE id = ?
+        `,
+        [req.user.id]
+      );
+
+      const authorName = req.user.full_name || req.user.name || null;
+
+      if (authorName) {
+        try {
+          await getPool().execute(
+            `
+              UPDATE posts
+              SET author_profile_image = NULL, author_profile_image_url = NULL
+              WHERE Author = ?
+            `,
+            [authorName]
+          );
+        } catch (syncError) {
+          console.error(
+            '[profile-image] Failed to sync post author images on removal:',
+            syncError.message
+          );
+        }
+      }
+
+      return res.json({
+        message: 'Profile image removed successfully.',
+        profile_image: null,
+        profile_image_url: null,
+        profile_image_public_id: null,
+      });
+    } catch (error) {
+      console.error('Profile image removal error:', error);
+      return res.status(500).json({
+        error: 'Unable to remove profile image.'
+      });
+    }
+  }
 );
 
 /* =========================================================
@@ -5928,11 +7601,13 @@ app.put(
   requireAuth,
   async (req, res) => {
     try {
-      const { full_name, department } = req.body || {};
+      const { full_name, department, phone, bio } = req.body || {};
 
       if (
         !full_name &&
-        department === undefined
+        department === undefined &&
+        phone === undefined &&
+        bio === undefined
       ) {
         return res.status(400).json({
           error: 'Nta kintu gihinduka.'
@@ -5954,7 +7629,7 @@ app.put(
         String(full_name).trim()
       ) {
         updates.push('full_name = ?');
-        params.push(String(full_name).trim());
+        params.push(String(full_name).trim().slice(0, 100));
       }
 
       if (department !== undefined) {
@@ -5962,7 +7637,25 @@ app.put(
         params.push(
           department === ''
             ? null
-            : String(department).trim()
+            : String(department).trim().slice(0, 100)
+        );
+      }
+
+      if (phone !== undefined) {
+        updates.push('phone = ?');
+        params.push(
+          phone === ''
+            ? null
+            : String(phone).trim().slice(0, 20)
+        );
+      }
+
+      if (bio !== undefined) {
+        updates.push('bio = ?');
+        params.push(
+          bio === ''
+            ? null
+            : String(bio).trim().slice(0, 2000)
         );
       }
 
@@ -5982,6 +7675,15 @@ app.put(
         `,
         params
       );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'profile.update',
+        targetType: table,
+        targetId: req.user.id,
+        targetTitle: full_name || 'profile',
+      });
 
       const [rows] = await getPool().query(
         `
@@ -6022,17 +7724,24 @@ app.put(
 ========================================================= */
 app.get(
   '/api/health',
-  (req, res) => {
-    res.status(200).json({
-      success:
-        true,
+  async (req, res) => {
+    try {
+      await getPool().query('SELECT 1');
 
-      message:
-        'Rubavu Today backend is running.',
-
-      time:
-        new Date().toISOString()
-    });
+      res.status(200).json({
+        success: true,
+        message: 'Rubavu Today backend is running.',
+        db: 'ok',
+        time: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(503).json({
+        success: false,
+        message: 'Database is unreachable.',
+        db: 'error',
+        time: new Date().toISOString()
+      });
+    }
   }
 );
 
@@ -6193,6 +7902,69 @@ async function startServer() {
           process.exit(1);
         }
       }
+    );
+
+    const shutdownInProgress =
+      { current: false };
+
+    const handleShutdown = (
+      signal
+    ) => {
+      if (shutdownInProgress.current) {
+        return;
+      }
+
+      shutdownInProgress.current = true;
+
+      console.log(
+        `[server] ${signal} received. Shutting down gracefully...`
+      );
+
+      const forceExitTimer = setTimeout(
+        () => {
+          console.error(
+            '[server] Forced exit after shutdown timeout.'
+          );
+
+          process.exit(1);
+        },
+        15000
+      );
+
+      if (typeof server.closeIdleConnections === 'function') {
+        server.closeIdleConnections();
+      }
+
+      server.close(
+        async () => {
+          try {
+            await closeCache();
+          } catch (error) {
+            console.error(
+              '[cache] Failed to close cache:',
+              error.message
+            );
+          }
+
+          clearTimeout(forceExitTimer);
+
+          console.log(
+            '[server] HTTP server closed.'
+          );
+
+          process.exit(0);
+        }
+      );
+    };
+
+    process.once(
+      'SIGTERM',
+      () => handleShutdown('SIGTERM')
+    );
+
+    process.once(
+      'SIGINT',
+      () => handleShutdown('SIGINT')
     );
 
   } catch (error) {

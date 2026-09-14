@@ -343,6 +343,11 @@ function getConnectionConfig(
     );
   }
 
+  const parsedConnectionLimit = Number.parseInt(
+    process.env.DB_CONNECTION_LIMIT || '10',
+    10
+  );
+
   const config = {
     host,
     port,
@@ -354,13 +359,21 @@ function getConnectionConfig(
 
     waitForConnections: true,
 
-    connectionLimit: 10,
+    connectionLimit:
+      Number.isInteger(parsedConnectionLimit) &&
+      parsedConnectionLimit > 0
+        ? parsedConnectionLimit
+        : 10,
 
     queueLimit: 0,
 
     multipleStatements: false,
 
     charset: "utf8mb4",
+
+    enableKeepAlive: true,
+
+    keepAliveInitialDelay: 30000,
   };
 
   /* =======================================================
@@ -974,6 +987,12 @@ async function init() {
     ["summary", "TEXT DEFAULT NULL"],
     ["views", "INT NOT NULL DEFAULT 0"],
     ["updated_at", "DATETIME DEFAULT NULL"],
+    ["subtitle", "VARCHAR(500) DEFAULT NULL"],
+    ["excerpt", "TEXT DEFAULT NULL"],
+    ["seo_title", "VARCHAR(255) DEFAULT NULL"],
+    ["seo_description", "TEXT DEFAULT NULL"],
+    ["seo_keywords", "VARCHAR(500) DEFAULT NULL"],
+    ["published_at", "DATETIME DEFAULT NULL"],
   ];
 
   for (const [column, definition] of postWorkflowColumns) {
@@ -1307,6 +1326,49 @@ async function init() {
       }
     }
   }
+
+  /* =======================================================
+     PROFILE DETAIL MIGRATIONS (department, bio)
+  ======================================================= */
+
+  const profileDetailTables = [
+    {
+      table: 'admins',
+      columns: [
+        ['department', 'VARCHAR(100) DEFAULT NULL'],
+        ['bio', 'TEXT DEFAULT NULL'],
+      ],
+    },
+    {
+      table: 'chief_editors',
+      columns: [
+        ['department', 'VARCHAR(100) DEFAULT NULL'],
+        ['bio', 'TEXT DEFAULT NULL'],
+      ],
+    },
+    {
+      table: 'employees',
+      columns: [
+        ['department', 'VARCHAR(100) DEFAULT NULL'],
+        ['bio', 'TEXT DEFAULT NULL'],
+      ],
+    },
+  ];
+
+  for (const { table, columns } of profileDetailTables) {
+    for (const [column, definition] of columns) {
+      if (!(await columnExists(table, column))) {
+        await safeAlter(
+          `${table}.${column}`,
+          `ALTER TABLE ${table} ADD COLUMN \`${column}\` ${definition}`
+        );
+      }
+    }
+  }
+
+  console.log(
+    "[database] Profile detail columns (department, bio) ready."
+  );
 
   /* =======================================================
      EMPLOYEE MIGRATIONS
@@ -1673,6 +1735,10 @@ async function init() {
       "CREATE INDEX idx_posts_status_created ON posts(status, createdDate)",
     ],
     [
+      "idx_posts_status_category",
+      "CREATE INDEX idx_posts_status_category ON posts(status, category(100))",
+    ],
+    [
       "idx_comments_post_id",
       "CREATE INDEX idx_comments_post_id ON comments(post_id)",
     ],
@@ -1729,6 +1795,133 @@ async function init() {
 
   console.log(
     "[database] Performance indexes ready."
+  );
+
+  /* =======================================================
+     CATEGORIES
+     Admin-managed categories. posts.category stays a plain
+     string column for compatibility; categories are the
+     canonical list used to populate selectors.
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      slug VARCHAR(120) NOT NULL UNIQUE,
+      icon VARCHAR(64) DEFAULT NULL,
+      color VARCHAR(100) DEFAULT NULL,
+      description VARCHAR(500) DEFAULT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+  `);
+
+  for (const [column, definition] of [
+    ['icon', 'VARCHAR(64) DEFAULT NULL'],
+    ['color', 'VARCHAR(100) DEFAULT NULL'],
+  ]) {
+    if (!(await columnExists('categories', column))) {
+      await safeAlter(
+        `categories.${column}`,
+        `ALTER TABLE categories ADD COLUMN \`${column}\` ${definition}`
+      );
+    }
+  }
+
+  await safeAlter(
+    'categories -> utf8mb4',
+    `ALTER TABLE categories CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+  );
+
+  const defaultCategories = [
+    { name: 'Amakuru', slug: 'amakuru', icon: '📍', color: '#e11d48', description: 'Amakuru rusange', sort_order: 1 },
+    { name: 'Ubukungu', slug: 'ubukungu', icon: '💰', color: '#059669', description: "Ubukungu n'imari", sort_order: 2 },
+    { name: 'Imikino', slug: 'imikino', icon: '⚽', color: '#2563eb', description: 'Imikino na siporo', sort_order: 3 },
+    { name: 'Imyidagaduro', slug: 'imyidagaduro', icon: '🎬', color: '#7c3aed', description: "Imyidagaduro n'ubuhanzi", sort_order: 4 },
+    { name: 'Uburezi', slug: 'uburezi', icon: '📚', color: '#d97706', description: "Uburezi n'ubushakashatsi", sort_order: 5 },
+    { name: 'Ikoranabuhanga', slug: 'ikoranabuhanga', icon: '💻', color: '#0891b2', description: 'Ikoranabuhanga na digitale', sort_order: 6 },
+    { name: 'Iyobokamana', slug: 'iyobokamana', icon: '🕌', color: '#10b981', description: 'Iyobokamana ndetse n’umuco', sort_order: 7 },
+    { name: 'Ubuzima', slug: 'ubuzima', icon: '🩺', color: '#dc2626', description: 'Ubuzima n’ubuvuzi', sort_order: 8 },
+    { name: 'Urukundo', slug: 'urukundo', icon: '💞', color: '#db2777', description: 'Urukundo n’imbaraga z’umutima', sort_order: 9 },
+    { name: 'Imibereho', slug: 'imibereho', icon: '🏠', color: '#7c2d12', description: 'Imibereho y’abaturage', sort_order: 10 },
+  ];
+
+  for (const cat of defaultCategories) {
+    await pool.query(
+      `INSERT IGNORE INTO categories (name, slug, icon, color, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
+      [cat.name, cat.slug, cat.icon, cat.color, cat.description, cat.sort_order]
+    );
+    // Backfill icon/color/description/sort_order on pre-existing rows that
+    // predate these columns (INSERT IGNORE skips duplicate slugs).
+    await pool.query(
+      `UPDATE categories
+       SET icon = IFNULL(icon, ?),
+           color = IFNULL(color, ?),
+           description = IFNULL(description, ?),
+           sort_order = IFNULL(sort_order, ?)
+       WHERE slug = ?`,
+      [cat.icon, cat.color, cat.description, cat.sort_order, cat.slug]
+    );
+  }
+
+  console.log(
+    "[database] categories table ready (seeded)."
+  );
+
+  /* =======================================================
+     POST STATUS HISTORY
+     Every status change is stored: who, previous status,
+     new status, date/time and feedback/reason.
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS post_status_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      post_id INT NOT NULL,
+      actor_role VARCHAR(30) DEFAULT NULL,
+      actor_name VARCHAR(150) DEFAULT NULL,
+      previous_status VARCHAR(20) DEFAULT NULL,
+      new_status VARCHAR(20) NOT NULL,
+      reason TEXT DEFAULT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_psh_post (post_id),
+      INDEX idx_psh_created (created_at),
+      CONSTRAINT fk_psh_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+    )
+  `);
+
+  console.log(
+    "[database] post_status_history table ready."
+  );
+
+  /* =======================================================
+     AUDIT LOG
+     Admin / Chief Editor actions with actor, action,
+     target and before/after values.
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      actor_role VARCHAR(30) DEFAULT NULL,
+      actor_name VARCHAR(150) DEFAULT NULL,
+      action VARCHAR(50) NOT NULL,
+      target_type VARCHAR(50) DEFAULT NULL,
+      target_id INT DEFAULT NULL,
+      target_title VARCHAR(255) DEFAULT NULL,
+      previous_value TEXT DEFAULT NULL,
+      new_value TEXT DEFAULT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_audit_actor (actor_name, created_at),
+      INDEX idx_audit_action (action, created_at),
+      INDEX idx_audit_target (target_type, target_id)
+    )
+  `);
+
+  console.log(
+    "[database] audit_log table ready."
   );
 
   /* =======================================================
