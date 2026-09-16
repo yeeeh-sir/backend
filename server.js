@@ -21,6 +21,15 @@ const {
 } = require('./services/cache');
 
 const { createPublicRateLimiter } = require('./middleware/rateLimiter');
+const { getVisitorAnalytics } = require('./services/analytics');
+
+const {
+  getDailyTaskState,
+  getMyWeeklyPerformance,
+  getAdminWeeklyReport,
+  getAdminDailyPerformance,
+  getAdminPerformanceSummary,
+} = require('./services/dailyTasks');
 
 const {
   getPool,
@@ -1146,7 +1155,7 @@ async function requireAuth(
     if (!token) {
       return res.status(401).json({
         error:
-          'Authentication required.'  
+          'Authentication required.'
       });
     }
 
@@ -2374,6 +2383,156 @@ app.get(
 ========================================================= */
 
 app.get(
+  '/api/admin/accounts',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const rawPage = Number.parseInt(req.query.page, 10);
+      const rawLimit = Number.parseInt(req.query.limit, 10);
+      const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+      const limit = Math.min(Math.max(rawLimit || 20, 1), 100);
+      const search = String(req.query.search || '').trim();
+      const like = `%${search}%`;
+
+      const accountQuery = `
+        SELECT id, full_name, email, role_type, status, created_at
+        FROM (
+          SELECT id, full_name, email, status, created_at, 'employee' AS role_type FROM employees
+          UNION ALL
+          SELECT id, full_name, email, status, created_at, 'chief_editor' AS role_type FROM chief_editors
+          UNION ALL
+          SELECT id, full_name, email, status, created_at, 'admin' AS role_type FROM admins
+        ) accounts
+        WHERE (? = '' OR full_name LIKE ? OR email LIKE ?)
+      `;
+      const pool = getPool();
+      const [[countRow]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM (${accountQuery}) matched_accounts`,
+        [search, like, like]
+      );
+      const total = Number(countRow.total || 0);
+      const offset = (page - 1) * limit;
+      const [accounts] = await pool.query(
+        `
+          SELECT matched.id, matched.full_name AS name, matched.email, matched.role_type AS role,
+            matched.status, matched.created_at,
+            COUNT(p.id) AS post_count,
+            MAX(COALESCE(p.updated_at, p.createdDate)) AS last_activity
+          FROM (${accountQuery}) matched
+          LEFT JOIN posts p ON p.Author = matched.full_name
+          GROUP BY matched.id, matched.full_name, matched.email, matched.role_type, matched.status, matched.created_at
+          ORDER BY matched.full_name ASC, matched.role_type ASC
+          LIMIT ? OFFSET ?
+        `,
+        [search, like, like, limit, offset]
+      );
+
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.json({ accounts, total, page, pageCount: Math.ceil(total / limit), limit });
+    } catch (error) {
+      console.error('Admin accounts error:', error.message);
+      res.status(500).json({ error: 'Unable to load accounts.' });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/accounts/:role/:id/posts',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const roleTables = {
+        employee: 'employees',
+        chief_editor: 'chief_editors',
+        admin: 'admins',
+      };
+      const table = roleTables[String(req.params.role || '').toLowerCase()];
+      const id = Number.parseInt(req.params.id, 10);
+      if (!table || !Number.isInteger(id) || id < 1) {
+        return res.status(400).json({ error: 'Valid account role and ID are required.' });
+      }
+
+      const rawPage = Number.parseInt(req.query.page, 10);
+      const rawLimit = Number.parseInt(req.query.limit, 10);
+      const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+      const limit = Math.min(Math.max(rawLimit || 20, 1), 100);
+      const search = String(req.query.search || '').trim();
+      const status = String(req.query.status || '').trim();
+      const category = String(req.query.category || '').trim();
+      const [accountRows] = await getPool().query(
+        `SELECT id, full_name AS name, email, status, created_at FROM ${table} WHERE id = ? LIMIT 1`,
+        [id]
+      );
+      if (!accountRows.length) return res.status(404).json({ error: 'Account not found.' });
+
+      const account = accountRows[0];
+      const conditions = ['p.Author = ?'];
+      const params = [account.name];
+      const [statRows] = await getPool().query(
+        `
+          SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS published,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
+            SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS drafts
+          FROM posts
+          WHERE Author = ?
+        `,
+        [account.name]
+      );
+      if (search) {
+        conditions.push('(p.title LIKE ? OR p.category LIKE ?)');
+        const postLike = `%${search}%`;
+        params.push(postLike, postLike);
+      }
+      if (status) {
+        conditions.push('p.status = ?');
+        params.push(status);
+      }
+      if (category) {
+        conditions.push('p.category = ?');
+        params.push(category);
+      }
+      const whereSql = conditions.join(' AND ');
+      const [[countRow]] = await getPool().query(
+        `SELECT COUNT(*) AS total FROM posts p WHERE ${whereSql}`,
+        params
+      );
+      const total = Number(countRow.total || 0);
+      const offset = (page - 1) * limit;
+      const [posts] = await getPool().query(
+        `
+          SELECT p.id, p.title, p.Author AS author, p.category, p.status, p.image,
+            p.createdDate AS created_at, p.updated_at, p.published_at, p.views
+          FROM posts p
+          WHERE ${whereSql}
+          ORDER BY COALESCE(p.updated_at, p.createdDate) DESC, p.id DESC
+          LIMIT ? OFFSET ?
+        `,
+        [...params, limit, offset]
+      );
+
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.json({
+        account,
+        stats: statRows[0] || { total: 0, published: 0, pending: 0, rejected: 0, drafts: 0 },
+        posts,
+        total,
+        page,
+        pageCount: Math.ceil(total / limit),
+        limit,
+      });
+    } catch (error) {
+      console.error('Admin account posts error:', error.message);
+      res.status(500).json({ error: 'Unable to load account posts.' });
+    }
+  }
+);
+
+app.get(
   '/api/admin/posts',
   requireAuth,
   requirePostManagement,
@@ -3254,6 +3413,25 @@ app.post(
         [generatedSlug, result.insertId]
       );
 
+      if (
+        postStatus !== 'draft' &&
+        ['employee', 'chief_editor'].includes(req.user.role_type)
+      ) {
+        await getPool().execute(
+          `
+            UPDATE posts
+            SET submitted_at = ?,
+                author_id = ?
+            WHERE id = ?
+          `,
+          [
+            new Date().toISOString().slice(0, 19).replace('T', ' '),
+            req.user.id,
+            result.insertId,
+          ]
+        );
+      }
+
       const [rows] =
         await getPool().query(
           `
@@ -3777,6 +3955,25 @@ app.put(
           id
         ]
       );
+
+      if (
+        updatedStatus !== 'draft' &&
+        ['employee', 'chief_editor'].includes(req.user.role_type)
+      ) {
+        await pool.execute(
+          `
+            UPDATE posts
+            SET submitted_at = IFNULL(submitted_at, ?),
+                author_id = IFNULL(author_id, ?)
+            WHERE id = ?
+          `,
+          [
+            new Date().toISOString().slice(0, 19).replace('T', ' '),
+            req.user.id,
+            id,
+          ]
+        );
+      }
 
       const [rows] =
         await pool.query(
@@ -4768,6 +4965,185 @@ app.delete(
       res.status(500).json({
         error:
           'Unable to delete image.'
+      });
+    }
+  }
+);
+
+/* =========================================================
+   DAILY TASKS + PERFORMANCE TRACKING
+   Employee and chief-editor roles get a persistent 24h
+   task cycle (target = 3 articles) with a live countdown
+   and a personal weekly report. Admins can view a weekly
+   performance report for every writer and chief editor.
+========================================================= */
+
+app.get(
+  '/api/tasks/daily',
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!['employee', 'chief_editor'].includes(req.user.role_type)) {
+        return res.status(403).json({
+          error: 'Daily tasks are only available to writers and chief editors.'
+        });
+      }
+
+      const state = await getDailyTaskState(req.user);
+
+      res.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate'
+      );
+
+      res.json(state);
+    } catch (error) {
+      console.error(
+        'Daily task state error:',
+        error.message
+      );
+
+      res.status(500).json({
+        error: 'Failed to load daily task state.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/tasks/my-performance',
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!['employee', 'chief_editor'].includes(req.user.role_type)) {
+        return res.status(403).json({
+          error: 'Performance reports are only available to writers and chief editors.'
+        });
+      }
+
+      const report = await getMyWeeklyPerformance(req.user);
+
+      res.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate'
+      );
+
+      res.json(report);
+    } catch (error) {
+      console.error(
+        'My performance report error:',
+        error.message
+      );
+
+      res.status(500).json({
+        error: 'Failed to load performance report.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/performance/daily',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const data = await getAdminDailyPerformance({
+        role: String(req.query.role || 'all'),
+      });
+
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.json(data);
+    } catch (error) {
+      console.error('Admin daily performance error:', error.message);
+      res.status(500).json({ error: 'Failed to load daily performance.' });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/analytics/visitors',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const data = await getVisitorAnalytics({
+        preset: String(req.query.preset || 'today'),
+      });
+      res.set('Cache-Control', 'private, max-age=300');
+      res.json(data);
+    } catch (error) {
+      console.error('Admin visitor analytics error:', error.code || error.message);
+      const status = [
+        'GA_PROPERTY_MISSING',
+        'GA_PROPERTY_INVALID',
+        'GA_CREDENTIALS_MISSING',
+        'GA_CREDENTIALS_INCOMPLETE',
+        'GA_CONFIG_INVALID',
+      ].includes(error.code) ? 503 : 502;
+      const diagnostic = {
+        GA_PROPERTY_MISSING: 'GA_PROPERTY_ID missing.',
+        GA_PROPERTY_INVALID: 'GA_PROPERTY_ID must be the numeric GA4 Property ID.',
+        GA_CREDENTIALS_MISSING: 'Google credentials missing.',
+        GA_CREDENTIALS_INCOMPLETE: 'Google credentials incomplete.',
+        GA_CONFIG_INVALID: 'Google credentials configuration is invalid.',
+      }[error.code] || 'Google Analytics Data API unavailable.';
+      res.status(status).json({
+        error: 'Google Analytics ntiboneka ubu.',
+        diagnostic,
+        code: error.code || 'GA_API_ERROR',
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/performance/weekly',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const report = await getAdminWeeklyReport({
+        role: String(req.query.role || 'all'),
+        start: String(req.query.start || ''),
+        end: String(req.query.end || ''),
+      });
+
+      res.json(report);
+    } catch (error) {
+      console.error(
+        'Admin weekly performance error:',
+        error.message
+      );
+
+      res.status(500).json({
+        error: 'Failed to load weekly performance report.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/performance/summary',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const data = await getAdminPerformanceSummary({
+        role: String(req.query.role || 'all'),
+        start: String(req.query.start || ''),
+        end: String(req.query.end || ''),
+      });
+
+      res.json(data);
+    } catch (error) {
+      console.error(
+        'Admin performance summary error:',
+        error.message
+      );
+
+      res.status(500).json({
+        error: 'Failed to load performance summary.'
       });
     }
   }

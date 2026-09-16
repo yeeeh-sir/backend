@@ -1925,6 +1925,101 @@ async function init() {
   );
 
   /* =======================================================
+     DAILY TASK & PERFORMANCE TRACKING
+     - daily_task_cycles stores every 24h cycle as its own
+       row (open or closed) so the app never needs to scan
+       posts to rebuild historical reports.
+     - daily_task_definitions are extensible task templates.
+     - daily_task_items copy the templates into each cycle,
+       letting individual task statuses evolve per cycle.
+     Cycle times are stored as UTC wall-clock strings so the
+     engine behaves identically on servers in any timezone.
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS daily_task_cycles (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      role_type VARCHAR(30) NOT NULL,
+      cycle_start DATETIME NOT NULL,
+      cycle_end DATETIME NOT NULL,
+      target INT NOT NULL DEFAULT 3,
+      completed INT NOT NULL DEFAULT 0,
+      extra INT NOT NULL DEFAULT 0,
+      completion_rate DECIMAL(8,2) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      target_reached TINYINT(1) NOT NULL DEFAULT 0,
+      target_reached_at DATETIME DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT NULL,
+      UNIQUE KEY uq_dtc_user_cycle (user_id, role_type, cycle_start),
+      KEY idx_dtc_user (user_id, role_type, status),
+      KEY idx_dtc_time (role_type, cycle_start, cycle_end)
+    )
+  `);
+
+  console.log(
+    "[database] daily_task_cycles table ready."
+  );
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS daily_task_definitions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      role_type VARCHAR(30) NOT NULL,
+      task_key VARCHAR(80) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      UNIQUE KEY uq_dtd_role_key (role_type, task_key)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS daily_task_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cycle_id INT NOT NULL,
+      task_key VARCHAR(80) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      sort_order INT NOT NULL DEFAULT 0,
+      UNIQUE KEY uq_dti_cycle_key (cycle_id, task_key),
+      KEY idx_dti_cycle (cycle_id)
+    )
+  `);
+
+  await pool.query(`
+    INSERT IGNORE INTO daily_task_definitions (role_type, task_key, title, sort_order)
+    VALUES
+      ('employee', 'write_3_articles', 'Andika inkuru 3', 1),
+      ('chief_editor', 'write_3_articles', 'Andika inkuru 3', 1)
+  `);
+
+  for (const [column, definition] of [
+    ["submitted_at", "DATETIME DEFAULT NULL"],
+    ["author_id", "INT DEFAULT NULL"],
+  ]) {
+    if (!(await columnExists("posts", column))) {
+      await safeAlter(
+        `posts.${column}`,
+        `ALTER TABLE posts ADD COLUMN ${column} ${definition}`
+      );
+    }
+  }
+
+  try {
+    await pool.query(
+      "CREATE INDEX idx_posts_submitted_author ON posts(submitted_at, author_id)"
+    );
+  } catch (error) {
+    if (error.code !== "ER_DUP_KEYNAME") {
+      console.error(
+        "[database] Index idx_posts_submitted_author FAILED:",
+        error.message
+      );
+    }
+  }
+
+  /* =======================================================
      DEFAULT ADMIN
   ======================================================= */
 
