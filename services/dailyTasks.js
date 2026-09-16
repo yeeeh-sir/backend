@@ -159,17 +159,38 @@ function dateRangeUtc(startStr, endStr) {
 }
 
 async function countCompletedArticles(user, startUtc, endUtc) {
+  const startStr = utcSql(startUtc);
+  const endStr = utcSql(endUtc);
+  const legacyName = user.full_name || user.email || '';
+
+  /* Split the legacy OR filter into two sargable branches so each one can
+     use a dedicated composite index (author_id, submitted_at, status) and
+     (Author, submitted_at, status) instead of scanning every row. */
   const [rows] = await getPool().query(
     `
-      SELECT COUNT(DISTINCT p.id) AS cnt
-      FROM posts p
-      WHERE (p.author_id = ? OR (p.author_id IS NULL AND p.Author = ?))
-        AND p.submitted_at IS NOT NULL
-        AND p.submitted_at >= ?
-        AND p.submitted_at < ?
-        AND p.status IN ('approved', 'pending')
+      SELECT
+        (SELECT COUNT(*) FROM posts p
+          WHERE p.author_id = ?
+            AND p.submitted_at >= ?
+            AND p.submitted_at < ?
+            AND p.status IN ('approved', 'pending'))
+        +
+        (SELECT COUNT(*) FROM posts p
+          WHERE p.author_id IS NULL
+            AND p.Author = ?
+            AND p.submitted_at >= ?
+            AND p.submitted_at < ?
+            AND p.status IN ('approved', 'pending'))
+        AS cnt
     `,
-    [user.id, user.full_name || user.email || '', utcSql(startUtc), utcSql(endUtc)]
+    [
+      user.id,
+      startStr,
+      endStr,
+      legacyName,
+      startStr,
+      endStr,
+    ]
   );
   return Number(rows[0] && rows[0].cnt) || 0;
 }
@@ -510,6 +531,8 @@ function totalsFromFrame(frame, dayMap) {
   const expected = DEFAULT_TARGET * frame.length;
   const extra = Math.max(0, completed - expected);
   const completionRate = expected > 0 ? Math.round((completed / expected) * 100) : 0;
+  const averagePerDay =
+    frame.length > 0 ? Math.round((completed / frame.length) * 10) / 10 : 0;
 
   return {
     completed,
@@ -518,6 +541,7 @@ function totalsFromFrame(frame, dayMap) {
     completionRate,
     reachedDays,
     missedDays,
+    averagePerDay,
   };
 }
 
@@ -610,91 +634,93 @@ async function getAdminWeeklyReport({ role = 'all', start = null, end = null }) 
         ? ['chief_editor', 'chief_editor']
         : ['employee', 'chief_editor'];
 
-  const users = [];
-
+  const roleQueries = [];
   if (role === 'all' || role === 'employee') {
-    const [employees] = await getPool().query(
-      `
-        SELECT id, full_name, email, status, role AS department
-        FROM employees
-        ORDER BY full_name ASC
-      `
+    roleQueries.push(
+      "SELECT id, full_name, email, status, role AS department, 'employee' AS role_type FROM employees"
     );
-
-    for (const emp of employees || []) {
-      users.push({
-        id: emp.id,
-        name: emp.full_name,
-        email: emp.email,
-        status: emp.status,
-        department: emp.department || null,
-        roleType: 'employee',
-      });
-    }
   }
-
   if (role === 'all' || role === 'chief_editor') {
-    const [chiefs] = await getPool().query(
-      `
-        SELECT id, full_name, email, status
-        FROM chief_editors
-        ORDER BY full_name ASC
-      `
+    roleQueries.push(
+      "SELECT id, full_name, email, status, NULL AS department, 'chief_editor' AS role_type FROM chief_editors"
     );
-
-    for (const chief of chiefs || []) {
-      users.push({
-        id: chief.id,
-        name: chief.full_name,
-        email: chief.email,
-        status: chief.status,
-        department: null,
-        roleType: 'chief_editor',
-      });
-    }
   }
 
-  const [cycleRows] = await getPool().query(
-    `
-      SELECT user_id, role_type, completed, target,
-        DATE_FORMAT(cycle_start, '%Y-%m-%d %H:%i:%s') AS cycle_start_str
-      FROM daily_task_cycles
-      WHERE role_type IN (?, ?)
-        AND cycle_start >= ?
-        AND cycle_start < ?
-    `,
-    [
-      roleTypes[0],
-      roleTypes[1],
-      utcSql(startUtc),
-      utcSql(endUtc),
-    ]
-  );
+  /* Single user round-trip: employees + chief editors in one UNION ALL.
+     Cycle aggregation runs in parallel with it so the high-latency remote
+     DB is only hit once per dataset instead of three times sequentially. */
+  const [[userRows], [cycleRows]] = await Promise.all([
+    getPool().query(roleQueries.join(' UNION ALL ')),
+    getPool().query(
+      `
+        SELECT user_id, role_type,
+          DATE_FORMAT(cycle_start, '%Y-%m-%d %H:%i:%s') AS cycle_start_str,
+          MAX(target) AS target,
+          SUM(completed) AS completed
+        FROM daily_task_cycles
+        WHERE role_type IN (?, ?)
+          AND cycle_start >= ?
+          AND cycle_start < ?
+        GROUP BY role_type, user_id, cycle_start
+      `,
+      [
+        roleTypes[0],
+        roleTypes[1],
+        utcSql(startUtc),
+        utcSql(endUtc),
+      ]
+    ),
+  ]);
 
+  const employees = [];
+  const chiefs = [];
+
+  for (const row of (userRows || [])) {
+    const item = {
+      id: row.id,
+      name: row.full_name,
+      email: row.email,
+      status: row.status,
+      department: row.department || null,
+      roleType: row.role_type,
+    };
+    (row.role_type === 'employee' ? employees : chiefs).push(item);
+  }
+
+  employees.sort((a, b) => a.name.localeCompare(b.name));
+  chiefs.sort((a, b) => a.name.localeCompare(b.name));
+
+  const users = [...employees, ...chiefs];
   const frame = buildWeekFrame(startUtc, endUtc, nowUtc);
+  const frameDates = new Set(frame.map((day) => day.date));
   const countedDays = frame.filter(
     (day) => !day.isFuture && (!explicitRange || day.date <= kigaliToday)
   );
+  const countedDayDates = new Set(countedDays.map((day) => day.date));
   const expectedDays = countedDays.length;
   const perUserDayMap = new Map();
 
   for (const cycle of cycleRows || []) {
-    const start = parseUtcSql(cycle.cycle_start_str);
-    if (!start) continue;
-    const day = kigaliDateStr(start);
-    if (!frame.some((d) => d.date === day)) continue;
-
+    const cycleStart = parseUtcSql(cycle.cycle_start_str);
+    if (!cycleStart) continue;
+    /* Bucket by the Kigali business date (cycle_start is stored as its UTC
+       wall clock, which is the previous UTC day for Kigali midnights). */
+    const businessDate = kigaliDateStr(cycleStart);
+    if (!frameDates.has(businessDate)) continue;
     const key = `${cycle.role_type}:${cycle.user_id}`;
     if (!perUserDayMap.has(key)) perUserDayMap.set(key, {});
     const map = perUserDayMap.get(key);
-    map[day] = (map[day] || 0) + (Number(cycle.completed) || 0);
+    map[businessDate] = {
+      completed: Number(cycle.completed) || 0,
+      target: Number(cycle.target) || DEFAULT_TARGET,
+    };
   }
 
   const dayTotals = {};
   for (const day of frame) dayTotals[day.date] = 0;
   for (const [, map] of perUserDayMap) {
     for (const [day, value] of Object.entries(map)) {
-      dayTotals[day] = (dayTotals[day] || 0) + value;
+      dayTotals[day] = (dayTotals[day] || 0) + value.completed;
     }
   }
 
@@ -710,20 +736,19 @@ async function getAdminWeeklyReport({ role = 'all', start = null, end = null }) 
     const map = perUserDayMap.get(key) || {};
 
     const dayRows = frame.map((day) => {
-      const completed = Number(map[day.date]) || 0;
+      const record = map[day.date];
+      const completed = record?.completed || 0;
       return {
         date: day.date,
         label: day.label,
         weekday: day.weekday,
         completed,
-        target: DEFAULT_TARGET,
-        reached: completed >= DEFAULT_TARGET,
+        target: record?.target || DEFAULT_TARGET,
+        reached: completed >= (record?.target || DEFAULT_TARGET),
       };
     });
 
-    const countedRows = dayRows.filter((row) =>
-      countedDays.some((day) => day.date === row.date)
-    );
+    const countedRows = dayRows.filter((row) => countedDayDates.has(row.date));
 
     let completed = 0;
     let reachedDays = 0;
@@ -792,6 +817,8 @@ async function getAdminWeeklyReport({ role = 'all', start = null, end = null }) 
         completionRate,
         reachedDays,
         missedDays,
+        averagePerDay:
+          expectedDays > 0 ? Math.round((completed / expectedDays) * 10) / 10 : 0,
       },
       days: dayRows,
     });
@@ -810,6 +837,8 @@ async function getAdminWeeklyReport({ role = 'all', start = null, end = null }) 
     report,
     summary: {
       totalCompleted,
+      averagePerDay:
+        expectedDays > 0 ? Math.round((totalCompleted / expectedDays) * 10) / 10 : 0,
       averageCompletionRate:
         rateCount > 0 ? Math.round(rateSum / rateCount) : 0,
       best,
@@ -829,42 +858,42 @@ async function getAdminDailyPerformance({ role = 'all' } = {}) {
       ? ['chief_editor']
       : ['employee', 'chief_editor'];
 
-  const [rows] = await getPool().query(
-    `
-      SELECT d.user_id, d.role_type, d.completed, d.target, d.extra,
-        d.status,
-        DATE_FORMAT(d.cycle_start, '%Y-%m-%d %H:%i:%s') AS cycle_start_str,
-        DATE_FORMAT(d.cycle_end, '%Y-%m-%d %H:%i:%s') AS cycle_end_str
-      FROM daily_task_cycles d
-      WHERE d.role_type IN (?, ?)
-        AND d.cycle_start >= ?
-        AND d.cycle_start < ?
-      ORDER BY d.role_type ASC, d.user_id ASC
-    `,
-    [roleTypes[0], roleTypes[1] || roleTypes[0], utcSql(start), utcSql(end)]
-  );
+  const [rows, employeeRows, chiefRows] = await Promise.all([
+    getPool().query(
+      `
+        SELECT d.user_id, d.role_type, d.completed, d.target, d.extra,
+          d.status,
+          DATE_FORMAT(d.cycle_start, '%Y-%m-%d %H:%i:%s') AS cycle_start_str,
+          DATE_FORMAT(d.cycle_end, '%Y-%m-%d %H:%i:%s') AS cycle_end_str
+        FROM daily_task_cycles d
+        WHERE d.role_type IN (?, ?)
+          AND d.cycle_start >= ?
+          AND d.cycle_start < ?
+        ORDER BY d.role_type ASC, d.user_id ASC
+      `,
+      [roleTypes[0], roleTypes[1] || roleTypes[0], utcSql(start), utcSql(end)]
+    ),
+    getPool().query(
+      `
+        SELECT id, full_name AS name, email, status
+        FROM employees
+        ORDER BY full_name ASC
+      `
+    ),
+    getPool().query(
+      `
+        SELECT id, full_name AS name, email, status
+        FROM chief_editors
+        ORDER BY full_name ASC
+      `
+    ),
+  ]);
 
   const userMap = new Map();
-  for (const row of rows || []) {
+  for (const row of rows[0] || []) {
     const key = `${row.role_type}:${row.user_id}`;
     userMap.set(key, row);
   }
-
-  const employeeRows = await getPool().query(
-    `
-      SELECT id, full_name AS name, email, status
-      FROM employees
-      ORDER BY full_name ASC
-    `
-  );
-
-  const chiefRows = await getPool().query(
-    `
-      SELECT id, full_name AS name, email, status
-      FROM chief_editors
-      ORDER BY full_name ASC
-    `
-  );
 
   const people = [];
   const employeeList = employeeRows[0] || [];

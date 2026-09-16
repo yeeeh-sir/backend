@@ -5109,6 +5109,7 @@ app.get(
         end: String(req.query.end || ''),
       });
 
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(report);
     } catch (error) {
       console.error(
@@ -5135,6 +5136,7 @@ app.get(
         end: String(req.query.end || ''),
       });
 
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(data);
     } catch (error) {
       console.error(

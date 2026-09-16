@@ -1739,6 +1739,14 @@ async function init() {
       "CREATE INDEX idx_posts_status_category ON posts(status, category(100))",
     ],
     [
+      "idx_posts_author_submitted_status",
+      "CREATE INDEX idx_posts_author_submitted_status ON posts(author_id, submitted_at, status)",
+    ],
+    [
+      "idx_posts_author_name_submitted_status",
+      "CREATE INDEX idx_posts_author_name_submitted_status ON posts(Author, submitted_at, status)",
+    ],
+    [
       "idx_comments_post_id",
       "CREATE INDEX idx_comments_post_id ON comments(post_id)",
     ],
