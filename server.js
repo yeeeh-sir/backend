@@ -5073,7 +5073,12 @@ app.get(
       res.set('Cache-Control', 'private, max-age=300');
       res.json(data);
     } catch (error) {
-      console.error('Admin visitor analytics error:', error.code || error.message);
+      console.error('Admin visitor analytics error:', {
+        code: error.code || 'GA_API_ERROR',
+        message: error.message || 'Unknown Google Analytics error',
+        status: error.response?.status || error.status || undefined,
+        details: error.details || undefined,
+      });
       const status = [
         'GA_PROPERTY_MISSING',
         'GA_PROPERTY_INVALID',

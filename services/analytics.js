@@ -7,6 +7,20 @@ const DATE_PRESETS = new Set(['today', 'yesterday', 'last7', 'last30', 'last90']
 
 let analyticsClient = null;
 
+function getPropertyId() {
+    const propertyId = String(
+        process.env.GA_PROPERTY_ID || process.env.GA4_PROPERTY_ID || ''
+    ).trim();
+
+    if (!/^\d+$/.test(propertyId)) {
+        const error = new Error('GA_PROPERTY_ID is not configured with a numeric GA4 property ID.');
+        error.code = propertyId ? 'GA_PROPERTY_INVALID' : 'GA_PROPERTY_MISSING';
+        throw error;
+    }
+
+    return propertyId;
+}
+
 function dateParts(date) {
     const values = new Intl.DateTimeFormat('en-CA', {
         timeZone: TIME_ZONE,
@@ -42,12 +56,7 @@ function resolveRange(preset = 'today') {
 function getAnalyticsClient() {
     if (analyticsClient) return analyticsClient;
 
-    const propertyId = String(process.env.GA4_PROPERTY_ID || '').trim();
-    if (!/^\d+$/.test(propertyId)) {
-        const error = new Error('GA4_PROPERTY_ID is not configured.');
-        error.code = propertyId ? 'GA_PROPERTY_INVALID' : 'GA_PROPERTY_MISSING';
-        throw error;
-    }
+    getPropertyId();
 
     const rawCredentials = process.env.GA4_SERVICE_ACCOUNT_JSON;
     const options = {};
@@ -92,7 +101,7 @@ async function runReport({ property, dateRanges, dimensions = [] }) {
 
 async function getVisitorAnalytics({ preset = 'today' } = {}) {
     const range = resolveRange(preset);
-    const property = `properties/${String(process.env.GA4_PROPERTY_ID).trim()}`;
+    const property = `properties/${getPropertyId()}`;
     const cacheKey = `admin:ga4:visitors:${range.preset}:${range.startDate}:${range.endDate}`;
 
     return withCache(cacheKey, CACHE_TTL_SECONDS, async () => {
