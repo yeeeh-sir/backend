@@ -1626,9 +1626,9 @@ app.get(
           );
 
           const urls = [
-            `  <url>\n    <loc>https://rubavutoday.com/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+            `  <url>\n    <loc>https://www.rubavutoday.com/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
             ...rows.map((post) => {
-              const loc = `https://rubavutoday.com/${post.slug}.html`;
+              const loc = `https://www.rubavutoday.com/${post.slug}.html`;
               const lastmod = post.createdDate
                 ? `\n    <lastmod>${new Date(post.createdDate).toISOString()}</lastmod>`
                 : '';
@@ -1838,7 +1838,7 @@ app.get(
 
       const post = rows[0];
 
-      const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://rubavutoday.com';
+      const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://www.rubavutoday.com';
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
 
       const rawTitle =
@@ -1888,8 +1888,8 @@ app.get(
           : "",
         `<meta name="robots" content="index, follow" />`,
         `<link rel="canonical" href="${escaped.canonicalUrl}" />`,
-        `<link rel="icon" type="image/jpeg" href="https://rubavutoday.com/favicon.jpg" />`,
-        `<link rel="apple-touch-icon" href="https://rubavutoday.com/favicon.jpg" />`,
+        `<link rel="icon" type="image/jpeg" href="https://www.rubavutoday.com/favicon.jpg" />`,
+        `<link rel="apple-touch-icon" href="https://www.rubavutoday.com/favicon.jpg" />`,
 
         `<meta property="og:type" content="article" />`,
         `<meta property="og:title" content="${escaped.title}" />`,
@@ -1988,7 +1988,7 @@ app.get(
       }
 
       const post = rows[0];
-      const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://rubavutoday.com';
+      const appUrl = process.env.PUBLIC_URL || process.env.FRONTEND_URL || 'https://www.rubavutoday.com';
       const backendUrl = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
       const canonical = new URL(`/${slug}.html`, appUrl).toString();
 
@@ -2030,8 +2030,8 @@ app.get(
           : "",
         `<meta name="robots" content="index, follow" />`,
         `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
-        `<link rel="icon" type="image/jpeg" href="https://rubavutoday.com/favicon.jpg" />`,
-        `<link rel="apple-touch-icon" href="https://rubavutoday.com/favicon.jpg" />`,
+        `<link rel="icon" type="image/jpeg" href="https://www.rubavutoday.com/favicon.jpg" />`,
+        `<link rel="apple-touch-icon" href="https://www.rubavutoday.com/favicon.jpg" />`,
         `<meta property="og:type" content="article" />`,
         `<meta property="og:title" content="${title}" />`,
         `<meta property="og:description" content="${description}" />`,
@@ -2137,10 +2137,10 @@ function getArticleJsonLd(post, canonicalUrl, image, title, description) {
     publisher: {
       '@type': 'Organization',
       name: 'Rubavu Today',
-      url: 'https://rubavutoday.com/',
+      url: 'https://www.rubavutoday.com/',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://rubavutoday.com/Rubavu.jpeg',
+        url: 'https://www.rubavutoday.com/Rubavu.jpeg',
       },
     },
     mainEntityOfPage: {
@@ -2181,7 +2181,7 @@ function getArticleImageUrl(image, backendUrl) {
   const value = String(image || '').trim();
 
   if (!value) {
-    return 'https://rubavutoday.com/Rubavu.jpeg';
+    return 'https://www.rubavutoday.com/Rubavu.jpeg';
   }
 
   if (/^https?:\/\//i.test(value)) {
