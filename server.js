@@ -21,7 +21,11 @@ const {
 } = require('./services/cache');
 
 const { createPublicRateLimiter } = require('./middleware/rateLimiter');
-const { getVisitorAnalytics } = require('./services/analytics');
+const {
+  getVisitorAnalytics,
+  getPropertyId,
+  hasAnalyticsCredentials,
+} = require('./services/analytics');
 
 const {
   getDailyTaskState,
@@ -5063,13 +5067,36 @@ app.get(
 
 app.get(
   '/api/admin/analytics/visitors',
+  (req, res, next) => {
+    console.info('[analytics] Admin visitor request received', {
+      method: req.method,
+      path: req.path,
+      authorizationHeaderPresent: Boolean(req.headers.authorization),
+    });
+    next();
+  },
   requireAuth,
   requireAdmin,
   async (req, res) => {
+    let propertyConfigured = false;
+    let credentialsDetected = false;
+    try {
+      propertyConfigured = Boolean(getPropertyId());
+    } catch (error) {
+      propertyConfigured = false;
+    }
+    credentialsDetected = hasAnalyticsCredentials();
+    console.info('[analytics] Admin visitor endpoint called', {
+      preset: String(req.query.preset || 'today'),
+      propertyConfigured,
+      credentialsDetected,
+    });
+
     try {
       const data = await getVisitorAnalytics({
         preset: String(req.query.preset || 'today'),
       });
+      console.info('[analytics] Admin visitor endpoint success');
       res.set('Cache-Control', 'private, max-age=300');
       res.json(data);
     } catch (error) {

@@ -7,6 +7,14 @@ const DATE_PRESETS = new Set(['today', 'yesterday', 'last7', 'last30', 'last90']
 
 let analyticsClient = null;
 
+function hasAnalyticsCredentials() {
+    return Boolean(
+        process.env.GA4_SERVICE_ACCOUNT_JSON ||
+        (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) ||
+        process.env.GOOGLE_APPLICATION_CREDENTIALS
+    );
+}
+
 function getPropertyId() {
     const propertyId = String(
         process.env.GA_PROPERTY_ID || process.env.GA4_PROPERTY_ID || ''
@@ -109,13 +117,30 @@ async function getVisitorAnalytics({ preset = 'today' } = {}) {
         const weekRange = resolveRange('last7');
         const monthRange = resolveRange('last30');
         const todayRange = resolveRange('today');
-        const [aggregate, daily, today, week, month] = await Promise.all([
-            runReport({ property, dateRanges }),
-            runReport({ property, dateRanges, dimensions: [{ name: 'date' }] }),
-            runReport({ property, dateRanges: [{ startDate: todayRange.startDate, endDate: todayRange.endDate }] }),
-            runReport({ property, dateRanges: [{ startDate: weekRange.startDate, endDate: weekRange.endDate }] }),
-            runReport({ property, dateRanges: [{ startDate: monthRange.startDate, endDate: monthRange.endDate }] }),
-        ]);
+        let reports;
+        try {
+            reports = await Promise.all([
+                runReport({ property, dateRanges }),
+                runReport({ property, dateRanges, dimensions: [{ name: 'date' }] }),
+                runReport({ property, dateRanges: [{ startDate: todayRange.startDate, endDate: todayRange.endDate }] }),
+                runReport({ property, dateRanges: [{ startDate: weekRange.startDate, endDate: weekRange.endDate }] }),
+                runReport({ property, dateRanges: [{ startDate: monthRange.startDate, endDate: monthRange.endDate }] }),
+            ]);
+            console.info('[analytics] Google Analytics Data API success', {
+                property,
+                preset: range.preset,
+            });
+        } catch (error) {
+            console.error('[analytics] Google Analytics Data API failure', {
+                code: error.code || 'GA_API_ERROR',
+                message: error.message || 'Unknown Google Analytics error',
+                status: error.response?.status || error.status || undefined,
+                details: error.details || undefined,
+            });
+            throw error;
+        }
+
+        const [aggregate, daily, today, week, month] = reports;
 
         const totalVisitors = Number(aggregate?.rows?.[0]?.metricValues?.[0]?.value || 0);
         const reportTotal = (response) => Number(response?.rows?.[0]?.metricValues?.[0]?.value || 0);
@@ -141,4 +166,4 @@ async function getVisitorAnalytics({ preset = 'today' } = {}) {
     });
 }
 
-module.exports = { getVisitorAnalytics };
+module.exports = { getVisitorAnalytics, getPropertyId, hasAnalyticsCredentials };
