@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
@@ -18,11 +18,13 @@ const {
   invalidateContentCaches,
   invalidateCategories,
   invalidateAdvertisements,
+  invalidateRadioCaches,
 } = require('./services/cache');
 
 const { createPublicRateLimiter } = require('./middleware/rateLimiter');
 const {
   getVisitorAnalytics,
+  getAdminAnalytics,
   getPropertyId,
   hasAnalyticsCredentials,
 } = require('./services/analytics');
@@ -111,8 +113,16 @@ const PUBLIC_CACHE_TTL = {
   categories: Number(process.env.CACHE_TTL_CATEGORIES || 600),
   categoryDetail: Number(process.env.CACHE_TTL_CATEGORY_DETAIL || 300),
   advertisements: Number(process.env.CACHE_TTL_ADS || 120),
+  radio: Number(process.env.CACHE_TTL_RADIO || 60),
   sitemap: Number(process.env.CACHE_TTL_SITEMAP || 300),
 };
+
+const PUBLIC_POST_DETAIL_FIELDS = `
+  id, title, slug, category, description, summary, subtitle, excerpt,
+  image, images, content_blocks, createdDate, published_at, youtube_url,
+  Author, author_profile_image, author_profile_image_url, tags, location,
+  views, seo_title, seo_description, seo_keywords, status
+`;
 
 /* Lightweight per-instance guard for read-heavy public endpoints. */
 const publicRateLimiter = createPublicRateLimiter();
@@ -120,8 +130,10 @@ const publicRateLimiter = createPublicRateLimiter();
 /* Splat mount: every PUBLIC read route registered after this point is
    rate-limited. Authenticated dashboard routes are unaffected. */
 app.use('/api/posts', publicRateLimiter);
+app.use('/api/search', publicRateLimiter);
 app.use('/api/categories', publicRateLimiter);
 app.use('/api/advertisements', publicRateLimiter);
+app.use('/api/radio', publicRateLimiter);
 
 function setPublicCacheHeaders(res, { maxAge, sMaxAge, swr }) {
   const parts = ['public'];
@@ -187,7 +199,7 @@ function userTableForRole(roleType) {
 }
 
 /* =========================================================
-   AI WEBSITE ASSISTANT — Google Gemini
+   AI WEBSITE ASSISTANT � Google Gemini
 ========================================================= */
 
 app.post('/api/ai/chat', async (req, res) => {
@@ -223,7 +235,7 @@ app.post('/api/ai/chat', async (req, res) => {
 });
 
 /* =========================================================
-   SIR GPT — GENERAL-PURPOSE AI (Gemini)
+   SIR GPT � GENERAL-PURPOSE AI (Gemini)
 ========================================================= */
 
 app.post('/api/sir-gpt', async (req, res) => {
@@ -344,7 +356,7 @@ app.use(
    PROFILE IMAGE FALLBACK
    Legacy accounts may still reference local profile pictures
    (e.g. /uploads/profiles/profile-14-....jpg) that no longer
-   exist on disk — Render wipes the ephemeral filesystem on
+   exist on disk � Render wipes the ephemeral filesystem on
    every deploy and uploads now go to Cloudinary. When the
    static middleware above cannot find the file, serve a
    neutral default avatar instead of falling through to the
@@ -566,6 +578,15 @@ function uploadToCloudinary(buffer, folder = 'rubavu-today', options = {}) {
       {
         folder,
         resource_type: 'image',
+        transformation: [
+          {
+            width: 1600,
+            height: 1600,
+            crop: 'limit',
+            quality: 'auto',
+            fetch_format: 'auto',
+          },
+        ],
         timestamp: correctedEpoch,
         ...options,
       },
@@ -1036,7 +1057,7 @@ function parsePostListFilters(req) {
    but only the newest N approved articles are transferred instead of the
    whole posts table. Tune with PUBLIC_POSTS_LIMIT. */
 const PUBLIC_POSTS_LIMIT =
-  Number(process.env.PUBLIC_POSTS_LIMIT || 200) || 200;
+  Number(process.env.PUBLIC_POSTS_LIMIT || 40) || 40;
 
 function addMaxRowsFilter(filters) {
   return {
@@ -1408,7 +1429,7 @@ function slugifyTitle(value) {
     .replace(/&/g, ' and ')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[â€™'`]/g, '')
+    .replace(/[’'`]/g, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
     .replace(/[\s_]+/g, ' ')
     .trim();
@@ -1611,6 +1632,71 @@ app.get(
 );
 
 app.get(
+  '/api/search',
+  async (req, res) => {
+    const query = String(req.query.q || '').trim();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 30);
+
+    if (!query) {
+      return res.json({ posts: [], total: 0, page, pageCount: 0, limit });
+    }
+
+    try {
+      const terms = query.split(/\s+/).filter(Boolean).slice(0, 8);
+      const likeTerms = terms.map((term) => `%${term}%`);
+      const searchable = `(
+        p.title LIKE ? OR p.description LIKE ? OR p.content_blocks LIKE ? OR
+        p.category LIKE ? OR p.tags LIKE ? OR p.summary LIKE ? OR p.excerpt LIKE ? OR
+        p.seo_keywords LIKE ? OR p.location LIKE ?
+      )`;
+      const whereSql = terms.map(() => searchable).join(' AND ');
+      const params = terms.flatMap((term) => Array(9).fill(`%${term}%`));
+
+      const [[countRow]] = await getPool().query(
+        `SELECT COUNT(*) AS total FROM posts p WHERE p.status = 'approved' AND ${whereSql}`,
+        params
+      );
+
+      const total = Number(countRow.total || 0);
+      const offset = (page - 1) * limit;
+      const relevanceParams = Array(5).fill(likeTerms[0]);
+      const [rows] = await getPool().query(
+        `
+          SELECT p.id, p.title, p.slug, p.category, p.image, p.createdDate,
+            p.Author, p.author_profile_image, p.summary, p.excerpt,
+            SUBSTRING(p.description, 1, 400) AS description,
+            CASE
+              WHEN p.title LIKE ? THEN 100
+              WHEN p.category LIKE ? OR p.tags LIKE ? THEN 70
+              WHEN p.summary LIKE ? OR p.excerpt LIKE ? THEN 50
+              ELSE 10
+            END AS relevance
+          FROM posts p
+          WHERE p.status = 'approved' AND ${whereSql}
+          ORDER BY relevance DESC, p.createdDate DESC, p.id DESC
+          LIMIT ? OFFSET ?
+        `,
+        [...relevanceParams, ...params, limit, offset]
+      );
+
+      const enriched = await attachPostAuthors(rows);
+      setPublicCacheHeaders(res, { maxAge: 15, sMaxAge: 30, swr: 60 });
+      return res.json({
+        posts: enriched,
+        total,
+        page,
+        pageCount: Math.ceil(total / limit),
+        limit,
+      });
+    } catch (error) {
+      console.error('Search public posts error:', error);
+      return res.status(500).json({ error: 'Unable to search posts.' });
+    }
+  }
+);
+
+app.get(
   '/sitemap.xml',
   async (req, res) => {
     try {
@@ -1678,7 +1764,7 @@ app.get(
           const [rows] =
             await getPool().query(
               `
-            SELECT *
+            SELECT ${PUBLIC_POST_DETAIL_FIELDS}
             FROM posts
             WHERE id = ?
             AND status = 'approved'
@@ -1757,7 +1843,7 @@ app.get(
         async () => {
           const [rows] = await getPool().query(
             `
-          SELECT *
+          SELECT ${PUBLIC_POST_DETAIL_FIELDS}
           FROM posts
           WHERE slug = ?
             AND status = 'approved'
@@ -3575,11 +3661,13 @@ app.put(
 
         if (
           existing.Author !==
-          employeeName
+          employeeName ||
+          existing.status !==
+          'pending'
         ) {
           return res.status(403).json({
-            error:
-              'You can only edit your own posts.'
+            message:
+              'Employees can only edit their own pending posts.'
           });
         }
       }
@@ -5130,6 +5218,48 @@ app.get(
 );
 
 app.get(
+  '/api/admin/analytics',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const data = await getAdminAnalytics({
+        startDate: String(req.query.startDate || ''),
+        endDate: String(req.query.endDate || ''),
+      });
+      res.set('Cache-Control', 'private, max-age=60');
+      res.json(data);
+    } catch (error) {
+      console.error('Admin analytics error:', {
+        code: error.code || 'GA_API_ERROR',
+        message: error.message || 'Unknown Google Analytics error',
+        status: error.response?.status || error.status || undefined,
+        details: error.details || undefined,
+      });
+      const status = [
+        'GA_PROPERTY_MISSING',
+        'GA_PROPERTY_INVALID',
+        'GA_CREDENTIALS_MISSING',
+        'GA_CREDENTIALS_INCOMPLETE',
+        'GA_CONFIG_INVALID',
+      ].includes(error.code) ? 503 : 502;
+      const diagnostic = {
+        GA_PROPERTY_MISSING: 'GA_PROPERTY_ID missing.',
+        GA_PROPERTY_INVALID: 'GA_PROPERTY_ID must be the numeric GA4 Property ID.',
+        GA_CREDENTIALS_MISSING: 'Google credentials missing.',
+        GA_CREDENTIALS_INCOMPLETE: 'Google credentials incomplete.',
+        GA_CONFIG_INVALID: 'Google credentials configuration is invalid.',
+      }[error.code] || 'Google Analytics Data API unavailable.';
+      res.status(status).json({
+        error: 'Google Analytics ntiboneka ubu.',
+        diagnostic,
+        code: error.code || 'GA_API_ERROR',
+      });
+    }
+  }
+);
+
+app.get(
   '/api/admin/performance/weekly',
   requireAuth,
   requireAdmin,
@@ -6231,6 +6361,762 @@ app.delete(
       res.status(500).json({
         error:
           'Unable to delete advertisement.'
+      });
+    }
+  }
+);
+
+function parseYoutubeVideoId(url) {
+  const value = String(url || '').trim();
+  if (!value) return null;
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.replace(/^(www\.|m\.)/, '');
+  if (host !== 'youtube.com' && host !== 'youtu.be') {
+    return null;
+  }
+  let videoId = null;
+  if (host === 'youtu.be') {
+    const shortMatch = parsed.pathname.match(/^\/([\w-]{11})/);
+    videoId = shortMatch ? shortMatch[1] : null;
+  } else {
+    videoId = parsed.searchParams.get('v');
+    if (!videoId) {
+      const pathMatch = parsed.pathname.match(/\/(?:embed|shorts|live)\/([\w-]{11})/);
+      videoId = pathMatch ? pathMatch[1] : null;
+    }
+  }
+  return videoId && /^[\w-]{11}$/.test(videoId) ? videoId : null;
+}
+
+function isValidHttpUrl(value) {
+  const str = String(value || '').trim();
+  if (!str) return true;
+  try {
+    const parsed = new URL(str);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function cleanRadioText(value, maxLength) {
+  if (value === undefined || value === null) return '';
+  return String(value)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeRadioStatus(status) {
+  return status === 'active' ? 'active' : 'inactive';
+}
+
+function normalizeRadioOrder(value) {
+  const num = Math.floor(Number(value));
+  return Number.isFinite(num) && num >= 0 ? num : 0;
+}
+
+async function buildPublicRadio() {
+  const [rows] =
+    await getPool().query(
+      `
+        SELECT
+          id,
+          title,
+          description,
+          youtube_url,
+          thumbnail,
+          audio_stream_url,
+          audio_url,
+          status,
+          queue_order,
+          now_playing
+        FROM radio_items
+        WHERE status = 'active'
+        ORDER BY queue_order ASC, id ASC
+      `
+    );
+
+  const items = rows;
+  const nowPlaying = items.find((item) => item.now_playing) || null;
+
+  return { nowPlaying, items };
+}
+
+app.get(
+  '/api/radio',
+  async (req, res) => {
+    try {
+      const data = await withCache(
+        'pub:radio',
+        PUBLIC_CACHE_TTL.radio,
+        buildPublicRadio
+      );
+
+      setPublicCacheHeaders(res, {
+        maxAge: PUBLIC_CACHE_TTL.radio,
+        sMaxAge: 600,
+        swr: 600,
+      });
+
+      res.json(data);
+
+    } catch (error) {
+      console.error('Fetch radio error:', error);
+      res.status(500).json({
+        error: 'Unable to fetch radio.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/radio/active',
+  async (req, res) => {
+    try {
+      const data = await withCache(
+        'pub:radio',
+        PUBLIC_CACHE_TTL.radio,
+        buildPublicRadio
+      );
+
+      setPublicCacheHeaders(res, {
+        maxAge: PUBLIC_CACHE_TTL.radio,
+        sMaxAge: 600,
+        swr: 600,
+      });
+
+      res.json(data);
+
+    } catch (error) {
+      console.error('Fetch active radio error:', error);
+      res.status(500).json({
+        error: 'Unable to fetch active radio.'
+      });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/radio',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const [rows] =
+        await getPool().query(
+          `
+            SELECT *
+            FROM radio_items
+            ORDER BY queue_order ASC, id ASC
+          `
+        );
+
+      res.json(rows);
+
+    } catch (error) {
+      console.error('Fetch admin radio error:', error);
+      res.status(500).json({
+        error: 'Unable to fetch radio items.'
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/admin/radio',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const {
+        title,
+        description,
+        youtube_url,
+        thumbnail,
+        audio_stream_url,
+        audio_url,
+        status,
+        queue_order
+      } = req.body;
+
+      const cleanTitle =
+        cleanRadioText(title, 255);
+
+      if (!cleanTitle) {
+        return res.status(400).json({
+          error: 'Radio title is required.'
+        });
+      }
+
+      const cleanYouTubeUrl = cleanRadioText(youtube_url, 500);
+      const cleanThumbnail =
+        cleanRadioText(thumbnail, 500);
+      const cleanAudioStreamUrl = cleanRadioText(
+        audio_stream_url ?? audio_url,
+        500
+      );
+      const finalStatus =
+        normalizeRadioStatus(status);
+      const finalOrder =
+        normalizeRadioOrder(queue_order);
+
+      if (!cleanYouTubeUrl || !parseYoutubeVideoId(cleanYouTubeUrl)) {
+        return res.status(400).json({
+          error: 'Invalid YouTube URL.'
+        });
+      }
+
+      if (
+        cleanThumbnail &&
+        !isValidHttpUrl(cleanThumbnail)
+      ) {
+        return res.status(400).json({
+          error: 'Thumbnail must be a valid http(s) URL.'
+        });
+      }
+
+      if (
+        cleanAudioStreamUrl &&
+        !isValidHttpUrl(cleanAudioStreamUrl)
+      ) {
+        return res.status(400).json({
+          error: 'Audio stream must be a valid http(s) URL.'
+        });
+      }
+
+      const [result] =
+        await getPool().execute(
+          `
+            INSERT INTO radio_items
+            (
+              title,
+              description,
+              youtube_url,
+              thumbnail,
+              audio_stream_url,
+              audio_url,
+              status,
+              queue_order,
+              created_by
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            cleanTitle,
+            cleanRadioText(description, 5000) || null,
+            cleanYouTubeUrl || null,
+            cleanThumbnail || null,
+            cleanAudioStreamUrl || null,
+            cleanAudioStreamUrl || null,
+            finalStatus,
+            finalOrder,
+            req.user.full_name || req.user.email
+          ]
+        );
+
+      const [rows] =
+        await getPool().query(
+          `
+            SELECT *
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [result.insertId]
+        );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'radio.create',
+        targetType: 'radio',
+        targetId: result.insertId,
+        targetTitle: cleanTitle,
+        newValue: `${finalStatus} | order ${finalOrder}`,
+      });
+
+      await invalidateRadioCaches();
+
+      res.status(201).json(rows[0]);
+
+    } catch (error) {
+      console.error('Create radio item error:', error);
+      res.status(500).json({
+        error: 'Unable to create radio item.'
+      });
+    }
+  }
+);
+
+app.put(
+  '/api/admin/radio/:id',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          error: 'Invalid radio item id.'
+        });
+      }
+
+      const pool = getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id, title, status, queue_order,
+                   description, youtube_url, thumbnail, audio_stream_url, audio_url
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error: 'Radio item not found.'
+        });
+      }
+
+      const {
+        title,
+        description,
+        youtube_url,
+        thumbnail,
+        audio_stream_url,
+        audio_url,
+        status,
+        queue_order
+      } = req.body;
+
+      const cleanTitle =
+        req.body.title === undefined
+          ? existing[0].title
+          : cleanRadioText(title, 255);
+
+      if (!cleanTitle) {
+        return res.status(400).json({
+          error: 'Radio title is required.'
+        });
+      }
+
+      const cleanYouTubeUrl =
+        cleanRadioText(youtube_url, 500);
+      const cleanThumbnail =
+        cleanRadioText(thumbnail, 500);
+      const cleanAudioStreamUrl = cleanRadioText(
+        audio_stream_url ?? audio_url,
+        500
+      );
+
+      if (
+        cleanYouTubeUrl &&
+        !parseYoutubeVideoId(cleanYouTubeUrl)
+      ) {
+        return res.status(400).json({
+          error: 'Invalid YouTube URL.'
+        });
+      }
+
+      if (
+        cleanThumbnail &&
+        !isValidHttpUrl(cleanThumbnail)
+      ) {
+        return res.status(400).json({
+          error: 'Thumbnail must be a valid http(s) URL.'
+        });
+      }
+
+      if (
+        cleanAudioStreamUrl &&
+        !isValidHttpUrl(cleanAudioStreamUrl)
+      ) {
+        return res.status(400).json({
+          error: 'Audio stream must be a valid http(s) URL.'
+        });
+      }
+
+      const finalStatus =
+        req.body.status === undefined
+          ? normalizeRadioStatus(existing[0].status)
+          : normalizeRadioStatus(status);
+      const finalOrder =
+        req.body.queue_order === undefined
+          ? normalizeRadioOrder(existing[0].queue_order)
+          : normalizeRadioOrder(queue_order);
+      const finalDesc =
+        req.body.description === undefined
+          ? existing[0].description
+          : (cleanRadioText(description, 5000) || null);
+      const finalYouTube = cleanYouTubeUrl || null;
+      const finalThumb =
+        req.body.thumbnail === undefined
+          ? existing[0].thumbnail
+          : (cleanThumbnail || null);
+      const finalAudioStreamUrl =
+        req.body.audio_stream_url === undefined && req.body.audio_url === undefined
+          ? (existing[0].audio_stream_url || existing[0].audio_url)
+          : (cleanAudioStreamUrl || null);
+
+      await pool.execute(
+        `
+          UPDATE radio_items
+          SET title = ?,
+              description = ?,
+              youtube_url = ?,
+              thumbnail = ?,
+              audio_stream_url = ?,
+              audio_url = ?,
+              status = ?,
+              queue_order = ?,
+              updated_at = NOW()
+          WHERE id = ?
+        `,
+        [
+          cleanTitle,
+          finalDesc,
+          finalYouTube,
+          finalThumb,
+          finalAudioStreamUrl,
+          finalAudioStreamUrl,
+          finalStatus,
+          finalOrder,
+          id
+        ]
+      );
+
+      const [rows] =
+        await pool.query(
+          `
+            SELECT *
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'radio.update',
+        targetType: 'radio',
+        targetId: id,
+        targetTitle: cleanTitle,
+        previousValue: `${existing[0].status} | order ${existing[0].queue_order}`,
+        newValue: `${finalStatus} | order ${finalOrder}`,
+      });
+
+      await invalidateRadioCaches();
+
+      res.json(rows[0]);
+
+    } catch (error) {
+      console.error('Update radio item error:', error);
+      res.status(500).json({
+        error: 'Unable to update radio item.'
+      });
+    }
+  }
+);
+
+app.delete(
+  '/api/admin/radio/:id',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          error: 'Invalid radio item id.'
+        });
+      }
+
+      const pool = getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id, title
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error: 'Radio item not found.'
+        });
+      }
+
+      await pool.execute(
+        `
+          DELETE FROM radio_items
+          WHERE id = ?
+        `,
+        [id]
+      );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'radio.delete',
+        targetType: 'radio',
+        targetId: id,
+        targetTitle: existing[0].title,
+        previousValue: existing[0].title,
+      });
+
+      await invalidateRadioCaches();
+
+      res.json({
+        message: 'Radio item deleted successfully.'
+      });
+
+    } catch (error) {
+      console.error('Delete radio item error:', error);
+      res.status(500).json({
+        error: 'Unable to delete radio item.'
+      });
+    }
+  }
+);
+
+app.patch(
+  '/api/admin/radio/:id/status',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          error: 'Invalid radio item id.'
+        });
+      }
+
+      const finalStatus =
+        normalizeRadioStatus(req.body.status);
+      const pool = getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id, title, status
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error: 'Radio item not found.'
+        });
+      }
+
+      await pool.execute(
+        `
+          UPDATE radio_items
+          SET status = ?,
+              updated_at = NOW()
+          WHERE id = ?
+        `,
+        [finalStatus, id]
+      );
+
+      const [rows] =
+        await pool.query(
+          `
+            SELECT *
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'radio.status',
+        targetType: 'radio',
+        targetId: id,
+        targetTitle: existing[0].title,
+        previousValue: existing[0].status,
+        newValue: finalStatus,
+      });
+
+      await invalidateRadioCaches();
+
+      res.json(rows[0]);
+
+    } catch (error) {
+      console.error('Update radio status error:', error);
+      res.status(500).json({
+        error: 'Unable to update radio status.'
+      });
+    }
+  }
+);
+
+app.patch(
+  '/api/admin/radio/:id/reorder',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          error: 'Invalid radio item id.'
+        });
+      }
+
+      const finalOrder =
+        normalizeRadioOrder(req.body.queue_order);
+      const pool = getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id, title
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error: 'Radio item not found.'
+        });
+      }
+
+      await pool.execute(
+        `
+          UPDATE radio_items
+          SET queue_order = ?,
+              updated_at = NOW()
+          WHERE id = ?
+        `,
+        [finalOrder, id]
+      );
+
+      await invalidateRadioCaches();
+
+      res.json({
+        message: 'Radio queue order updated.',
+        queue_order: finalOrder
+      });
+
+    } catch (error) {
+      console.error('Reorder radio error:', error);
+      res.status(500).json({
+        error: 'Unable to reorder radio.'
+      });
+    }
+  }
+);
+
+app.patch(
+  '/api/admin/radio/:id/now-playing',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          error: 'Invalid radio item id.'
+        });
+      }
+
+      const raw = req.body.now_playing;
+      const isNowPlaying =
+        raw === true ||
+        raw === 'true' ||
+        raw === 1 ||
+        raw === '1';
+      const pool = getPool();
+
+      const [existing] =
+        await pool.query(
+          `
+            SELECT id, title
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      if (!existing.length) {
+        return res.status(404).json({
+          error: 'Radio item not found.'
+        });
+      }
+
+      await pool.execute(
+        `
+          UPDATE radio_items
+          SET now_playing = 0,
+              updated_at = NOW()
+        `,
+        []
+      );
+
+      if (isNowPlaying) {
+        await pool.execute(
+          `
+            UPDATE radio_items
+            SET now_playing = 1,
+                updated_at = NOW()
+            WHERE id = ?
+          `,
+          [id]
+        );
+      }
+
+      const [rows] =
+        await pool.query(
+          `
+            SELECT *
+            FROM radio_items
+            WHERE id = ?
+          `,
+          [id]
+        );
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'radio.now_playing',
+        targetType: 'radio',
+        targetId: id,
+        targetTitle: existing[0].title,
+        newValue: isNowPlaying ? 'true' : 'false',
+      });
+
+      await invalidateRadioCaches();
+
+      res.json(rows[0]);
+
+    } catch (error) {
+      console.error('Update now playing error:', error);
+      res.status(500).json({
+        error: 'Unable to update now playing.'
       });
     }
   }

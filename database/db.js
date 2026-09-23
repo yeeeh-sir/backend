@@ -361,7 +361,7 @@ function getConnectionConfig(
 
     connectionLimit:
       Number.isInteger(parsedConnectionLimit) &&
-      parsedConnectionLimit > 0
+        parsedConnectionLimit > 0
         ? parsedConnectionLimit
         : 10,
 
@@ -839,6 +839,22 @@ async function columnExists(
   return rows.length > 0;
 }
 
+async function indexExists(table, indexName) {
+  const [rows] = await pool.query(
+    `
+      SELECT INDEX_NAME
+      FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        AND INDEX_NAME = ?
+      LIMIT 1
+    `,
+    [dbName, table, indexName]
+  );
+
+  return rows.length > 0;
+}
+
 /* =========================================================
    DEFAULT ADMIN
 ========================================================= */
@@ -1001,6 +1017,19 @@ async function init() {
         `posts.${column}`,
         `ALTER TABLE posts ADD COLUMN ${column} ${definition}`
       );
+    }
+  }
+
+  const postIndexes = [
+    ["idx_posts_status_created", "CREATE INDEX idx_posts_status_created ON posts (status, createdDate, id)"],
+    ["idx_posts_status_category", "CREATE INDEX idx_posts_status_category ON posts (status, category, createdDate)"],
+    ["idx_posts_status_published", "CREATE INDEX idx_posts_status_published ON posts (status, published_at, id)"],
+    ["idx_posts_status_views", "CREATE INDEX idx_posts_status_views ON posts (status, views, createdDate)"],
+  ];
+
+  for (const [indexName, statement] of postIndexes) {
+    if (!(await indexExists("posts", indexName))) {
+      await safeAlter(`posts.${indexName}`, statement);
     }
   }
 
@@ -2032,6 +2061,51 @@ async function init() {
   ======================================================= */
 
   await ensureDefaultAdmin();
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS radio_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT DEFAULT NULL,
+      youtube_url VARCHAR(500) DEFAULT NULL,
+      thumbnail VARCHAR(500) DEFAULT NULL,
+      audio_stream_url VARCHAR(500) DEFAULT NULL,
+      audio_url VARCHAR(500) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'inactive',
+      queue_order INT NOT NULL DEFAULT 0,
+      now_playing TINYINT(1) NOT NULL DEFAULT 0,
+      created_by VARCHAR(150) DEFAULT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT NULL,
+      INDEX idx_radio_status_order (status, queue_order)
+    )
+  `);
+
+  console.log(
+    "[database] radio_items table ready."
+  );
+
+  const radioMigrationColumns = [
+    ["audio_stream_url", "VARCHAR(500) DEFAULT NULL"],
+    ["audio_url", "VARCHAR(500) DEFAULT NULL"],
+    ["now_playing", "TINYINT(1) NOT NULL DEFAULT 0"],
+  ];
+
+  for (const [column, definition] of radioMigrationColumns) {
+    if (!(await columnExists("radio_items", column))) {
+      await safeAlter(
+        `radio_items.${column}`,
+        `ALTER TABLE radio_items ADD COLUMN ${column} ${definition}`
+      );
+    }
+  }
+
+  if (!(await indexExists("radio_items", "idx_radio_status_order"))) {
+    await safeAlter(
+      "radio_items.idx_radio_status_order",
+      "CREATE INDEX idx_radio_status_order ON radio_items (status, queue_order)"
+    );
+  }
 
   /* =======================================================
      COMPLETE

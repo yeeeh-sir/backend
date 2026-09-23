@@ -356,6 +356,10 @@ async function invalidateAdvertisements() {
   await deleteCache('pub:ads');
 }
 
+async function invalidateRadioCaches() {
+  await deleteCache('pub:radio');
+}
+
 module.exports = {
   getCache,
   setCache,
@@ -367,4 +371,5 @@ module.exports = {
   invalidateContentCaches,
   invalidateCategories,
   invalidateAdvertisements,
+  invalidateRadioCaches,
 };
