@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
@@ -196,6 +196,58 @@ function userTableForRole(roleType) {
     default:
       return null;
   }
+}
+
+/* =========================================================
+   NICKNAME HELPERS
+
+   `full_name` is the official name and stays controlled by the Admin
+   Dashboard. `nickname` is an optional alias an employee may set for
+   themselves; it is stored in its own column and never replaces the
+   real name.
+   ========================================================= */
+
+const NICKNAME_MAX_LENGTH = 100;
+
+/* Normalize an incoming nickname to either a trimmed string or null.
+   Blank / whitespace-only values become null so the UI never renders
+   empty parentheses such as "Name ()". */
+function normalizeNickname(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const trimmed = String(value).trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.slice(0, NICKNAME_MAX_LENGTH);
+}
+
+/* Build the public byline for an author: the real name stays primary and
+   the optional nickname is appended in parentheses.
+     MBONYINSHUTI Claude (TPLAY WARAKAYE)
+     MBONYINSHUTI Claude
+   A nickname identical to the real name is ignored to avoid noise. */
+function buildAuthorDisplayName(fullName, nickname) {
+  const name = String(fullName || '').trim();
+  const alias = normalizeNickname(nickname);
+
+  if (!alias) {
+    return name;
+  }
+
+  if (!name) {
+    return alias;
+  }
+
+  if (alias.toLowerCase() === name.toLowerCase()) {
+    return name;
+  }
+
+  return `${name} (${alias})`;
 }
 
 /* =========================================================
@@ -1053,11 +1105,14 @@ function parsePostListFilters(req) {
   };
 }
 
-/* Public list cap: the legacy array shape is preserved (no pagination),
-   but only the newest N approved articles are transferred instead of the
-   whole posts table. Tune with PUBLIC_POSTS_LIMIT. */
+/* Public list cap: the legacy array shape is preserved (no pagination).
+   The default is UNLIMITED so the complete approved archive stays visible
+   and reachable; a hard cap previously hid older published articles from
+   the homepage, category pages and related-post lookups. Set
+   PUBLIC_POSTS_LIMIT to a positive number to re-enable a bounded feed
+   (older posts are then woven in by buildMixedFeed instead of dropped). */
 const PUBLIC_POSTS_LIMIT =
-  Number(process.env.PUBLIC_POSTS_LIMIT || 40) || 40;
+  Math.max(Number(process.env.PUBLIC_POSTS_LIMIT || 0) || 0, 0);
 
 function addMaxRowsFilter(filters) {
   return {
@@ -1066,8 +1121,66 @@ function addMaxRowsFilter(filters) {
     category: filters.category || '',
     status: filters.status || '',
     author: filters.author || '',
+    publicFeed: true,
     maxRows: PUBLIC_POSTS_LIMIT,
   };
+}
+
+/* Deterministically pick `count` items spread evenly across `list`. */
+function pickEvenly(list, count) {
+  if (count >= list.length) return list.slice();
+
+  const step = list.length / count;
+  const picked = [];
+
+  for (let i = 0; i < count; i += 1) {
+    picked.push(list[Math.min(list.length - 1, Math.floor(i * step))]);
+  }
+
+  return picked;
+}
+
+/* Build a natural mixed feed: recent posts get the most space, but older
+   posts are woven in throughout so the grid never shows only the newest
+   articles. Deterministic, so every post appears at most once. */
+function buildMixedFeed(rows, limit, recencyRatio = 0.6, runLength = 3) {
+  if (!rows.length || limit <= 0) return [];
+
+  const count = Math.min(limit, rows.length);
+
+  if (count <= 1) return rows.slice(0, count);
+
+  const recentCount = Math.max(1, Math.round(count * recencyRatio));
+  const archiveCount = count - recentCount;
+
+  const recent = rows.slice(0, recentCount);
+  const archive = pickEvenly(rows.slice(recentCount), archiveCount);
+
+  const mixed = [recent[0]];
+  let recentIndex = 1;
+  let archiveIndex = 0;
+
+  while (mixed.length < count) {
+    for (let i = 0; i < runLength && recentIndex < recent.length && mixed.length < count; i += 1) {
+      mixed.push(recent[recentIndex]);
+      recentIndex += 1;
+    }
+
+    if (archiveIndex < archive.length && mixed.length < count) {
+      mixed.push(archive[archiveIndex]);
+      archiveIndex += 1;
+    }
+
+    if (recentIndex >= recent.length) {
+      while (archiveIndex < archive.length && mixed.length < count) {
+        mixed.push(archive[archiveIndex]);
+        archiveIndex += 1;
+      }
+      break;
+    }
+  }
+
+  return mixed;
 }
 
 async function queryPostList({ fixedWhere = '1=1', fixedParams = [], filters = {}, selectFields = 'p.*, p.Author AS author_name' }) {
@@ -1124,7 +1237,9 @@ async function queryPostList({ fixedWhere = '1=1', fixedParams = [], filters = {
     );
     rows = result;
   } else if (filters.maxRows) {
-    /* Public feed: newest-approved-only, bounded result set. */
+    /* Opt-in bounded public feed: mix the newest posts with older ones,
+       then trim to the configured cap. */
+    const fetchLimit = Math.max(filters.maxRows * 10, 200);
     const [result] = await getPool().query(
       `
         SELECT ${selectFields}
@@ -1133,7 +1248,20 @@ async function queryPostList({ fixedWhere = '1=1', fixedParams = [], filters = {
         ORDER BY p.createdDate DESC, p.id DESC
         LIMIT ?
       `,
-      [...params, filters.maxRows]
+      [...params, fetchLimit]
+    );
+    rows = buildMixedFeed(result, filters.maxRows);
+  } else if (filters.publicFeed) {
+    /* Unbounded public feed: return the complete approved collection,
+       newest first, so no published article is hidden by a row cap. */
+    const [result] = await getPool().query(
+      `
+        SELECT ${selectFields}
+        FROM posts p
+        WHERE ${whereSql}
+        ORDER BY p.createdDate DESC, p.id DESC
+      `,
+      params
     );
     rows = result;
   } else {
@@ -1195,6 +1323,7 @@ async function requireAuth(
           SELECT
             id,
             full_name,
+            NULL AS nickname,
             email,
             phone,
             password,
@@ -1216,6 +1345,7 @@ async function requireAuth(
           SELECT
             id,
             full_name,
+            NULL AS nickname,
             email,
             phone,
             password,
@@ -1237,6 +1367,7 @@ async function requireAuth(
           SELECT
             id,
             full_name,
+            nickname,
             email,
             phone,
             password,
@@ -1487,21 +1618,21 @@ async function attachPostAuthors(posts) {
     const placeholders = authorNames.map(() => '?').join(', ');
     const [matches] = await getPool().query(
       `
-        SELECT id, full_name, profile_image, profile_image_url, role_type
+        SELECT id, full_name, nickname, profile_image, profile_image_url, role_type
         FROM (
-          SELECT id, full_name, profile_image, profile_image_url, 'admin' AS role_type
+          SELECT id, full_name, NULL AS nickname, profile_image, profile_image_url, 'admin' AS role_type
           FROM admins
           WHERE full_name IN (${placeholders})
 
           UNION ALL
 
-          SELECT id, full_name, profile_image, profile_image_url, 'chief_editor' AS role_type
+          SELECT id, full_name, NULL AS nickname, profile_image, profile_image_url, 'chief_editor' AS role_type
           FROM chief_editors
           WHERE full_name IN (${placeholders})
 
           UNION ALL
 
-          SELECT id, full_name, profile_image, profile_image_url, 'employee' AS role_type
+          SELECT id, full_name, nickname, profile_image, profile_image_url, 'employee' AS role_type
           FROM employees
           WHERE full_name IN (${placeholders})
         ) AS authors
@@ -1532,11 +1663,27 @@ async function attachPostAuthors(posts) {
       post?.author_profile_image ||
       null;
 
+    /* The real name stays primary; the optional employee nickname is
+       exposed separately and as a ready-to-render display name. */
+    const nickname =
+      normalizeNickname(
+        matchedAuthor?.nickname
+      ) ||
+      null;
+
+    const displayName =
+      buildAuthorDisplayName(
+        name,
+        nickname
+      );
+
     return {
       ...post,
       author: {
         id: matchedAuthor?.id || null,
         name,
+        nickname,
+        display_name: displayName,
         role: matchedAuthor?.role_type || 'unknown',
         profile_image:
           existingImage ||
@@ -1544,6 +1691,8 @@ async function attachPostAuthors(posts) {
           matchedAuthor?.profile_image ||
           null,
       },
+      author_nickname: nickname,
+      author_display_name: displayName,
       author_profile_image:
         existingImage ||
         matchedAuthor?.profile_image_url ||
@@ -1564,7 +1713,7 @@ app.get(
         Object.assign(filters, addMaxRowsFilter(filters));
       }
 
-      const cacheKey = 'pub:posts:list:v1:' + JSON.stringify({
+      const cacheKey = 'pub:posts:list:v3:' + JSON.stringify({
         search: filters.search,
         category: filters.category,
         hasPaging: filters.hasPaging,
@@ -1747,6 +1896,206 @@ app.get(
       return res.status(500).type('application/xml').send(
         '<?xml version="1.0" encoding="UTF-8"?><error>Sitemap unavailable</error>'
       );
+    }
+  }
+);
+
+/* =========================================================
+   NEXT PUBLISHED ARTICLE  ("Soma Andi Makuru")
+
+   Walks the published archive in the same order the home page shows
+   articles: newest -> oldest. The reader is given a strict cursor based
+   on (createdDate, id) so the walk can never loop, never skip an
+   article, and never depends on the size of the cached post list.
+
+   Query:
+     /api/posts/next            -> the newest published article
+     /api/posts/next?id=123     -> the article after 123
+     /api/posts/next?slug=abc   -> the article after slug "abc"
+
+   Response:
+     { post: <summary|null>, hasMore: boolean }
+   `post: null` means the reader reached the oldest article.
+   ========================================================= */
+
+app.get(
+  '/api/posts/next',
+  async (req, res) => {
+    try {
+      const rawId =
+        Number.parseInt(
+          req.query.id,
+          10
+        );
+
+      const rawSlug =
+        String(
+          req.query.slug ||
+          ''
+        )
+          .replace(/\.html$/i, '')
+          .trim();
+
+      let cursor = null;
+
+      if (
+        Number.isInteger(rawId) &&
+        rawId > 0
+      ) {
+        const [cursorRows] =
+          await getPool().query(
+            `
+              SELECT id, createdDate
+              FROM posts
+              WHERE id = ?
+                AND status = 'approved'
+              LIMIT 1
+            `,
+            [rawId]
+          );
+
+        if (cursorRows.length) {
+          cursor = cursorRows[0];
+        }
+
+      } else if (
+        rawSlug
+      ) {
+        const [cursorRows] =
+          await getPool().query(
+            `
+              SELECT id, createdDate
+              FROM posts
+              WHERE slug = ?
+                AND status = 'approved'
+              LIMIT 1
+            `,
+            [rawSlug]
+          );
+
+        if (cursorRows.length) {
+          cursor = cursorRows[0];
+        }
+      }
+
+      if (
+        (Number.isInteger(rawId) &&
+          rawId > 0) ||
+        rawSlug
+      ) {
+        if (!cursor) {
+          return res.status(404).json({
+            error:
+              'Article not found.'
+          });
+        }
+      }
+
+      /* Strictly older than the cursor, newest first. Two rows are read
+         so `hasMore` is known without a second COUNT query. */
+      const olderFilter =
+        cursor
+          ? `AND (
+               p.createdDate < ?
+               OR (p.createdDate = ? AND p.id < ?)
+             )`
+          : '';
+
+      const olderParams =
+        cursor
+          ? [
+              cursor.createdDate,
+              cursor.createdDate,
+              cursor.id
+            ]
+          : [];
+
+      const cacheKey =
+        'pub:post:next:' +
+        (cursor
+          ? `${cursor.id}`
+          : 'first');
+
+      const payload =
+        await withCache(
+          cacheKey,
+          PUBLIC_CACHE_TTL.postsList,
+          async () => {
+            const [rows] =
+              await getPool().query(
+                `
+                  SELECT
+                    p.id,
+                    p.title,
+                    p.slug,
+                    p.category,
+                    p.image,
+                    p.createdDate,
+                    p.published_at,
+                    p.status,
+                    p.Author,
+                    p.author_profile_image,
+                    p.author_profile_image_url,
+                    p.summary,
+                    p.excerpt,
+                    SUBSTRING(
+                      p.description,
+                      1,
+                      300
+                    ) AS description
+                  FROM posts p
+                  WHERE p.status = 'approved'
+                  ${olderFilter}
+                  ORDER BY
+                    p.createdDate DESC,
+                    p.id DESC
+                  LIMIT 2
+                `,
+                olderParams
+              );
+
+            const next = rows[0] || null;
+
+            const [enriched] =
+              next
+                ? await attachPostAuthors([
+                    next
+                  ])
+                : [null];
+
+            return {
+              post: enriched,
+              hasMore: rows.length > 1
+            };
+          }
+        );
+
+      setPublicCacheHeaders(
+        res,
+        {
+          maxAge: 30,
+          sMaxAge: 60,
+          swr: 300
+        }
+      );
+
+      return res.json(
+        payload || {
+          post: null,
+          hasMore: false
+        }
+      );
+
+    } catch (error) {
+      console.error(
+        'Next post error:',
+        error
+      );
+
+      return res.status(500).json({
+        error:
+          'Unable to fetch the next article.'
+      });
     }
   }
 );
@@ -3222,10 +3571,29 @@ app.post(
         status
       } = req.body;
 
+      const isEmployee =
+        req.user.role_type ===
+        'employee';
+
+      const requestedStatus =
+        String(status || '')
+          .trim()
+          .toLowerCase();
+
+      /* Drafts are intentionally allowed to be incomplete so an employee
+         can save a headline now and finish the article later. Anything
+         that is going to be reviewed still needs the required fields. */
+      const isDraftRequest =
+        requestedStatus ===
+        'draft';
+
       if (
         !title ||
         !category ||
-        !description
+        (
+          !description &&
+          !isDraftRequest
+        )
       ) {
         return res.status(400).json({
           error:
@@ -3347,26 +3715,27 @@ app.post(
         ? JSON.stringify(blocks)
         : null;
 
+      /* Security: an employee may never post under someone else's name.
+         Admins and Chief Editors may still set the byline explicitly. */
       const authorName =
-        author &&
-          String(author).trim()
-          ? String(author).trim()
-          : req.user.full_name ||
-          req.user.email ||
-          'Admin';
+        isEmployee
+          ? req.user.full_name ||
+            req.user.email ||
+            'Admin'
+          : author &&
+              String(author).trim()
+            ? String(author).trim()
+            : req.user.full_name ||
+              req.user.email ||
+              'Admin';
 
       let postStatus =
         'pending';
 
       if (
-        req.user.role_type ===
-        'employee'
+        isEmployee
       ) {
-        const requestedStatus = String(
-          status || ''
-        ).trim().toLowerCase();
-
-        if (requestedStatus === 'draft') {
+        if (isDraftRequest) {
           postStatus = 'draft';
         }
       } else if (
@@ -3469,7 +3838,9 @@ app.post(
             String(title).trim(),
             '',
             String(category).trim(),
-            description,
+            description
+              ? String(description)
+              : '',
             imageUrl,
             imagesJson,
             blocksJson,
@@ -3659,15 +4030,27 @@ app.put(
           req.user.full_name ||
           req.user.email;
 
+        /* An employee owns the article and may keep working on it while
+           it is still a draft or waiting for review. Once it has been
+           approved or sent back, only an Admin / Chief Editor can
+           change it. */
+        const editableStatuses = [
+          'draft',
+          'pending'
+        ];
+
         if (
           existing.Author !==
-          employeeName ||
-          existing.status !==
-          'pending'
+            employeeName ||
+          !editableStatuses.includes(
+            existing.status
+          )
         ) {
           return res.status(403).json({
             message:
-              'Employees can only edit their own pending posts.'
+              'Employees can only edit their own draft or pending posts.',
+            error:
+              'Employees can only edit their own draft or pending posts.'
           });
         }
       }
@@ -3832,12 +4215,18 @@ app.put(
           ? youtube_url || null
           : existing.youtube_url;
 
+      /* Security: employees keep their own byline, so the nickname shown
+         on the article always belongs to the signed-in reporter. */
       const updatedAuthor =
-        author !==
-          undefined &&
-          String(author).trim()
-          ? String(author).trim()
-          : existing.Author;
+        userRole === 'employee'
+          ? req.user.full_name ||
+            req.user.email ||
+            existing.Author
+          : author !==
+              undefined &&
+              String(author).trim()
+            ? String(author).trim()
+            : existing.Author;
 
       let updatedStatus =
         existing.status;
@@ -3919,6 +4308,27 @@ app.put(
           approvedAt = null;
           rejectionReason = null;
         }
+      }
+
+      /* A draft may be saved incomplete, but an article that goes to
+         review must have readable content. */
+      const nextDescription =
+        description !== undefined
+          ? String(description || '')
+          : String(existing.description || '');
+
+      const hasBody =
+        Boolean(nextDescription.trim()) ||
+        Boolean(blocks && blocks.length);
+
+      if (
+        updatedStatus === 'pending' &&
+        !hasBody
+      ) {
+        return res.status(400).json({
+          error:
+            'Add the article text before sending it for review.'
+        });
       }
 
       const incomingTitle = title !== undefined && String(title).trim()
@@ -4545,6 +4955,7 @@ app.get(
             COUNT(p.id) AS postCount
           FROM categories c
           LEFT JOIN posts p ON p.category = c.name
+            AND p.status = 'approved'
           WHERE c.active = 1
           GROUP BY c.id, c.name, c.slug, c.icon, c.color, c.description, c.sort_order, c.active
           ORDER BY c.sort_order ASC, c.id ASC
@@ -4578,7 +4989,7 @@ app.get(
       const { slug } = req.params;
 
       const body = await withCache(
-        'pub:category:' + String(slug),
+        'pub:category:v2:' + String(slug),
         PUBLIC_CACHE_TTL.categoryDetail,
         async () => {
           const [rows] = await getPool().query(
@@ -5219,9 +5630,31 @@ app.get(
 
 app.get(
   '/api/admin/analytics',
+  (req, res, next) => {
+    console.info('[analytics] Admin dashboard request received', {
+      method: req.method,
+      path: req.path,
+      authorizationHeaderPresent: Boolean(req.headers.authorization),
+    });
+    next();
+  },
   requireAuth,
   requireAdmin,
   async (req, res) => {
+    let propertyConfigured = false;
+    try {
+      propertyConfigured = Boolean(getPropertyId());
+    } catch (error) {
+      propertyConfigured = false;
+    }
+    const credentialsDetected = hasAnalyticsCredentials();
+    console.info('[analytics] Admin dashboard endpoint called', {
+      startDate: String(req.query.startDate || ''),
+      endDate: String(req.query.endDate || ''),
+      propertyConfigured,
+      credentialsDetected,
+    });
+
     try {
       const data = await getAdminAnalytics({
         startDate: String(req.query.startDate || ''),
@@ -7138,6 +7571,7 @@ app.get(
             SELECT
               id,
               full_name,
+              nickname,
               email,
               phone,
               role,
@@ -7172,6 +7606,7 @@ app.post(
     try {
       const {
         full_name,
+        nickname,
         email,
         phone,
         password,
@@ -7214,6 +7649,9 @@ app.post(
 
       const cleanName =
         String(full_name).trim();
+
+      const cleanNickname =
+        normalizeNickname(nickname);
 
       const cleanEmail =
         String(email)
@@ -7278,6 +7716,7 @@ app.post(
             INSERT INTO employees
             (
               full_name,
+              nickname,
               email,
               phone,
               password,
@@ -7285,10 +7724,11 @@ app.post(
               status,
               authToken
             )
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
           `,
           [
             cleanName,
+            cleanNickname,
             cleanEmail,
             cleanPhone,
             hashedPassword,
@@ -7303,6 +7743,7 @@ app.post(
             SELECT
               id,
               full_name,
+              nickname,
               email,
               phone,
               role,
@@ -7358,6 +7799,7 @@ app.put(
 
       const {
         full_name,
+        nickname,
         email,
         phone,
         password,
@@ -7407,6 +7849,15 @@ app.put(
           String(full_name).trim()
           ? String(full_name).trim()
           : existing.full_name;
+
+      /* Admin may set or clear the employee's nickname. An omitted
+         nickname keeps the stored value; an empty one clears it. */
+      const updatedNickname =
+        nickname !== undefined
+          ? normalizeNickname(nickname)
+          : normalizeNickname(
+              existing.nickname
+            );
 
       const updatedEmail =
         email !== undefined &&
@@ -7480,6 +7931,7 @@ app.put(
           UPDATE employees
           SET
             full_name = ?,
+            nickname = ?,
             email = ?,
             phone = ?,
             password = ?,
@@ -7489,6 +7941,7 @@ app.put(
         `,
         [
           updatedName,
+          updatedNickname,
           updatedEmail,
           updatedPhone,
           updatedPassword,
@@ -7504,6 +7957,7 @@ app.put(
             SELECT
               id,
               full_name,
+              nickname,
               email,
               phone,
               role,
@@ -8278,6 +8732,14 @@ app.post(
           full_name:
             user.full_name,
 
+          nickname:
+            userTable ===
+            'employees'
+              ? normalizeNickname(
+                  user.nickname
+                )
+              : null,
+
           phone:
             user.phone ||
             null,
@@ -8366,6 +8828,11 @@ app.get(
 
           full_name:
             req.user.full_name,
+
+          nickname:
+            normalizeNickname(
+              req.user.nickname
+            ),
 
           phone:
             req.user.phone ||
@@ -8625,6 +9092,11 @@ app.put(
           full_name:
             req.user.full_name,
 
+          nickname:
+            normalizeNickname(
+              req.user.nickname
+            ),
+
           phone:
             req.user.phone ||
             null,
@@ -8637,6 +9109,10 @@ app.put(
           profile_image_url:
             req.user.profile_image_url ||
             req.user.profile_image ||
+            null,
+
+          profile_image_public_id:
+            req.user.profile_image_public_id ||
             null,
 
           role:
@@ -8897,10 +9373,36 @@ app.put(
   requireAuth,
   async (req, res) => {
     try {
-      const { full_name, department, phone, bio } = req.body || {};
+      const {
+        full_name,
+        nickname,
+        department,
+        phone,
+        bio
+      } = req.body || {};
+
+      const isEmployee =
+        req.user.role_type ===
+        'employee';
+
+      /* Security: the official full_name is controlled by the Admin
+         Dashboard. An employee may only change their own nickname. */
+      if (
+        isEmployee &&
+        full_name !== undefined &&
+        String(full_name).trim() &&
+        String(full_name).trim() !==
+          String(req.user.full_name || '').trim()
+      ) {
+        return res.status(403).json({
+          error:
+            'Usobwa urashobora guhindura nickname gusa. Amazina yombi yahindurwa n\'umuyobozi.'
+        });
+      }
 
       if (
         !full_name &&
+        nickname === undefined &&
         department === undefined &&
         phone === undefined &&
         bio === undefined
@@ -8920,12 +9422,25 @@ app.put(
       const updates = [];
       const params = [];
 
+      /* Only Admin / Chief Editor may change the real name. */
       if (
+        !isEmployee &&
         full_name &&
         String(full_name).trim()
       ) {
         updates.push('full_name = ?');
         params.push(String(full_name).trim().slice(0, 100));
+      }
+
+      /* Nicknames are an employee-only column. */
+      if (
+        isEmployee &&
+        nickname !== undefined
+      ) {
+        updates.push('nickname = ?');
+        params.push(
+          normalizeNickname(nickname)
+        );
       }
 
       if (department !== undefined) {

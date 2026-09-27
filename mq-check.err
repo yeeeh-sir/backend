@@ -1,0 +1,259 @@
+[database] Remote database TLS is enabled, but no CA certificate (DB_SSL_CA / DB_SSL_CA_FILE) was provided yet. Will attempt verified TLS if a CA is configured; otherwise development-only fallback will be used. In production this is a hard error.
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+Admin visitor analytics error: {
+  code: 'GA_PROPERTY_MISSING',
+  message: 'GA_PROPERTY_ID is not configured with a numeric GA4 property ID.',
+  status: undefined,
+  details: undefined
+}
+[database] query failed with ENOTFOUND. Retrying (1/2) after 500ms...
+[database] query failed with ENOTFOUND. Retrying (2/2) after 1000ms...
+Authentication error: Error: getaddrinfo ENOTFOUND mysql-2bc3d6a4-tuyishimevalens142-1bcd.b.aivencloud.com
+    at PromisePool.query (C:\Rubavutoday\backend\node_modules\mysql2\lib\promise\pool.js:36:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:260:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:275:16)
+    at async requireAuth (C:\Rubavutoday\backend\server.js:1250:14) {
+  code: 'ENOTFOUND',
+  errno: -3008,
+  sql: undefined,
+  sqlState: undefined,
+  sqlMessage: undefined
+}
+[database] query failed with ENOTFOUND. Retrying (1/2) after 500ms...
+[database] query failed with ENOTFOUND. Retrying (2/2) after 1000ms...
+Authentication error: Error: getaddrinfo ENOTFOUND mysql-2bc3d6a4-tuyishimevalens142-1bcd.b.aivencloud.com
+    at PromisePool.query (C:\Rubavutoday\backend\node_modules\mysql2\lib\promise\pool.js:36:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:260:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:275:16)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processTimers (node:internal/timers:538:9)
+    at async requireAuth (C:\Rubavutoday\backend\server.js:1250:14) {
+  code: 'ENOTFOUND',
+  errno: -3008,
+  sql: undefined,
+  sqlState: undefined,
+  sqlMessage: undefined
+}
+[database] query failed with ENOTFOUND. Retrying (1/2) after 500ms...
+[database] query failed with ENOTFOUND. Retrying (2/2) after 1000ms...
+Authentication error: Error: getaddrinfo ENOTFOUND mysql-2bc3d6a4-tuyishimevalens142-1bcd.b.aivencloud.com
+    at PromisePool.query (C:\Rubavutoday\backend\node_modules\mysql2\lib\promise\pool.js:36:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:260:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:275:16)
+    at async requireAuth (C:\Rubavutoday\backend\server.js:1250:14) {
+  code: 'ENOTFOUND',
+  errno: -3008,
+  sql: undefined,
+  sqlState: undefined,
+  sqlMessage: undefined
+}
+[database] query failed with ENOTFOUND. Retrying (1/2) after 500ms...
+[database] query failed with ENOTFOUND. Retrying (2/2) after 1000ms...
+Authentication error: Error: getaddrinfo ENOTFOUND mysql-2bc3d6a4-tuyishimevalens142-1bcd.b.aivencloud.com
+    at PromisePool.query (C:\Rubavutoday\backend\node_modules\mysql2\lib\promise\pool.js:36:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:260:22)
+    at execute (C:\Rubavutoday\backend\database\db.js:275:16)
+    at async requireAuth (C:\Rubavutoday\backend\server.js:1250:14) {
+  code: 'ENOTFOUND',
+  errno: -3008,
+  sql: undefined,
+  sqlState: undefined,
+  sqlMessage: undefined
+}

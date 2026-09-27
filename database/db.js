@@ -1141,6 +1141,7 @@ async function init() {
     CREATE TABLE IF NOT EXISTS employees(
       id INT AUTO_INCREMENT PRIMARY KEY,
       full_name VARCHAR(100) NOT NULL,
+      nickname VARCHAR(100) DEFAULT NULL,
       email VARCHAR(150) NOT NULL UNIQUE,
       phone VARCHAR(20) DEFAULT NULL,
       password VARCHAR(255) NOT NULL,
@@ -1446,6 +1447,13 @@ async function init() {
       "status",
       "VARCHAR(20) DEFAULT 'active'",
     ],
+    /* Optional employee nickname. Kept separate from full_name so the
+       official name stays admin-controlled while employees may set a
+       public-facing alias. Nullable: existing employees work unchanged. */
+    [
+      "nickname",
+      "VARCHAR(100) DEFAULT NULL",
+    ],
     [
       "authToken",
       "VARCHAR(128) DEFAULT NULL",
@@ -1653,6 +1661,22 @@ async function init() {
   } catch (error) {
     console.error(
       "[migration] Employee role normalization failed:",
+      error.message
+    );
+  }
+
+  /* Blank nicknames are stored as NULL so the public byline never has to
+     decide how to render empty parentheses. */
+  try {
+    await pool.query(`
+      UPDATE employees
+      SET nickname = NULL
+      WHERE nickname IS NOT NULL
+        AND TRIM(nickname) = ''
+    `);
+  } catch (error) {
+    console.error(
+      "[migration] Employee nickname normalization failed:",
       error.message
     );
   }

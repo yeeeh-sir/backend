@@ -338,6 +338,7 @@ async function invalidateContentCaches() {
     deleteCacheByPrefix('pub:posts:list'),
     deleteCacheByPrefix('pub:post:id:'),
     deleteCacheByPrefix('pub:post:slug:'),
+    deleteCacheByPrefix('pub:post:next:'),
     deleteCacheByPrefix('pub:category:'),
     deleteCache('pub:categories'),
     deleteCache('pub:sitemap'),
@@ -349,6 +350,7 @@ async function invalidateCategories() {
     deleteCache('pub:categories'),
     deleteCacheByPrefix('pub:category:'),
     deleteCacheByPrefix('pub:posts:list'),
+    deleteCacheByPrefix('pub:post:next:'),
   ]);
 }
 

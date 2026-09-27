@@ -1,0 +1,529 @@
+◇ injected env (15) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+[cache] No REDIS_URL configured — using per-instance in-memory cache (safe for a single backend; add REDIS_URL + ioredis for multi-instance).
+[uploads] Directory exists: C:\Rubavutoday\backend\uploads
+[server] Initializing database...
+[database] Initializing database...
+[database] Connecting to mysql-2bc3d6a4-tuyishimevalens142-1bcd.b.aivencloud.com:12546
+[database] Database: defaultdb
+[database] User: avnadmin
+[database] SSL: enabled
+[database] Successfully connected using verified TLS.
+[database] posts table ready.
+[database] notifications table ready.
+[database] media_library table ready.
+[database] admins table ready.
+[database] chief_editors table ready.
+[database] employees table ready.
+[database] comments table ready.
+[database] comment_reactions table ready.
+[database] advertisements table ready.
+[database] Profile detail columns (department, bio) ready.
+[database] Post slugs normalized.
+[database] Index idx_posts_status already exists.
+[database] Index idx_posts_author already exists.
+[database] Index idx_posts_created already exists.
+[database] Index idx_posts_status_created already exists.
+[database] Index idx_posts_status_category already exists.
+[database] Index idx_posts_author_submitted_status already exists.
+[database] Index idx_posts_author_name_submitted_status already exists.
+[database] Index idx_comments_post_id already exists.
+[database] Index idx_comments_parent already exists.
+[database] Index idx_auth_token_admins already exists.
+[database] Index idx_auth_token_chief already exists.
+[database] Index idx_auth_token_emp already exists.
+[database] Index idx_ads_status already exists.
+[database] Performance indexes ready.
+[migration] categories -> utf8mb4: OK
+[database] categories table ready (seeded).
+[database] post_status_history table ready.
+[database] audit_log table ready.
+[database] daily_task_cycles table ready.
+[admin] Skipping default admin creation: no ADMIN_EMAIL / ADMIN_PASSWORD configured.
+[database] radio_items table ready.
+[database] Database initialization completed successfully.
+[server] Database initialization completed.
+[cloudinary] Cloud: zyxt9llj
+[cloudinary] API Key: 7426****
+[cloudinary] API Secret: LOADED
+[server] Upload directory: C:\Rubavutoday\backend\uploads
+Backend server is running on port 5000
+Uploads directory: C:\Rubavutoday\backend\uploads
+Health endpoint: /api/health
+Uploads endpoint: /uploads/
+[cloudinary] measured clock skew (ms): -1196
+[request] GET /api/radio 304 209.0ms
+[request] GET /api/advertisements 304 1834.1ms
+[request] GET /api/posts 200 3184.6ms
+[request] GET /api/posts/slug/gisagara-umwana-w-imyaka-12-yarohamye-mu-mugezi 200 798.9ms
+[request] GET /uploads/profiles/profile-15-1788812199563-9ce506364576.jpg 304 136.5ms
+[request] GET /api/comments/374?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 249.5ms
+[request] GET /api/posts 304 1716.8ms
+[request] GET /api/advertisements 304 244.3ms
+[request] GET /api/comments/382?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 250.4ms
+[request] GET /api/posts/slug/musanze-imiryango-19-yasezeranye-imbere-y-amategeko-mu-gutangiza-icyumweru-cy-uburinganire-n-umuryango 200 607.7ms
+[request] GET /api/radio 200 194.1ms
+[request] GET /api/radio 200 247.0ms
+[request] GET /api/advertisements 200 196.7ms
+[request] GET /api/advertisements 200 197.7ms
+[request] GET /api/advertisements 200 1440.3ms
+[request] GET /api/advertisements 200 1469.1ms
+[request] GET /api/posts 200 1765.3ms
+[request] GET /api/posts/slug/daniel-levy-aracyafite-imigabane-muri-tottenham-nubwo-yavuye-ku-buyobozi 200 802.6ms
+[request] GET /api/posts/slug/daniel-levy-aracyafite-imigabane-muri-tottenham-nubwo-yavuye-ku-buyobozi 200 987.3ms
+[request] GET /uploads/profiles/profile-16-1788811172063-befe43797bc8.jpg 200 1.6ms
+[request] GET /api/comments/372?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 250.9ms
+[request] GET /api/radio 304 241.9ms
+[request] GET /api/advertisements 304 198.6ms
+[request] GET /api/posts 304 1330.8ms
+[request] POST /api/auth/login 200 726.1ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 590.6ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 397.0ms
+[request] GET /api/employees 304 849.7ms
+[request] GET /api/employees 304 500.7ms
+[request] GET /api/chief-editors 304 395.5ms
+[request] GET /api/chief-editors 304 512.4ms
+[request] GET /api/admin/posts 200 2276.1ms
+[request] GET /api/comments 200 540.9ms
+[request] GET /api/comments 200 766.5ms
+[request] GET /api/admin/posts 304 1103.5ms
+[request] GET /api/admin/radio 200 394.8ms
+[request] GET /api/admin/radio 304 394.5ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 206.9ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[request] GET /api/employees 304 389.5ms
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 198.9ms
+[request] GET /api/employees 304 425.9ms
+[request] GET /api/chief-editors 304 429.7ms
+[request] GET /api/chief-editors 304 409.8ms
+[request] GET /api/comments 200 396.1ms
+[request] GET /api/comments 200 394.9ms
+[request] GET /api/admin/posts 304 4288.8ms
+[request] GET /api/admin/posts 304 2577.5ms
+[request] GET /api/radio 200 1.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/auth/me 200 193.2ms
+[request] GET /api/auth/me 200 247.0ms
+[request] GET /uploads/profiles/profile-7-1788807212868-3ba18d4c4684.jpeg 200 252.8ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 478.8ms
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 335.9ms
+[request] GET /api/employees 200 458.4ms
+[request] GET /api/employees 200 389.6ms
+[request] GET /api/chief-editors 200 563.2ms
+[request] GET /api/advertisements 200 193.3ms
+[request] GET /api/chief-editors 200 399.2ms
+[request] GET /api/comments 200 530.2ms
+[request] GET /api/admin/posts 200 2049.7ms
+[request] GET /api/comments 200 573.7ms
+[request] GET /api/admin/posts 200 2769.3ms
+[request] GET /api/auth/me 304 253.7ms
+[request] GET /api/auth/me 304 258.0ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 261.6ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[request] GET /api/employees 304 397.5ms
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 249.4ms
+[request] GET /api/employees 304 400.8ms
+[request] GET /api/chief-editors 304 496.1ms
+[request] GET /api/chief-editors 304 496.6ms
+[request] GET /api/comments 200 403.4ms
+[request] GET /api/admin/posts 304 2129.7ms
+[request] GET /api/comments 200 504.7ms
+[request] GET /api/admin/posts 304 1760.4ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 759.3ms
+[request] GET /api/radio 200 3161.8ms
+[request] GET /api/auth/me 200 1879.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/advertisements 200 522.0ms
+[request] GET /api/auth/me 200 523.3ms
+[request] GET /api/advertisements 200 0.4ms
+[request] GET /api/posts 200 11191.5ms
+[request] GET /api/advertisements 200 4499.8ms
+[request] GET /api/advertisements 200 6470.5ms
+[request] GET /api/auth/me 304 16086.5ms
+[request] GET /api/radio 304 18260.2ms
+[request] GET /api/advertisements 304 7609.5ms
+[request] GET /api/auth/me 304 906.6ms
+[request] GET /api/posts 200 10296.1ms
+[request] GET /api/radio 200 275.9ms
+[request] GET /api/radio 200 196.3ms
+[request] GET /api/auth/me 200 284.3ms
+[request] GET /api/auth/me 200 198.0ms
+[request] GET /api/advertisements 200 199.6ms
+[request] GET /api/advertisements 200 197.0ms
+[request] GET /api/advertisements 200 223.1ms
+[request] GET /api/posts 200 1477.7ms
+[request] GET /api/advertisements 200 2661.9ms
+[request] GET /api/radio 304 241.4ms
+[request] GET /api/auth/me 304 425.8ms
+[request] GET /api/advertisements 304 200.9ms
+[request] GET /api/auth/me 304 206.9ms
+[request] GET /api/posts 304 1378.1ms
+[request] GET /api/radio 200 8313.1ms
+[request] GET /api/advertisements 304 9899.5ms
+[request] GET /api/auth/me 401 9549.9ms
+[request] GET /api/posts 200 15854.0ms
+[request] GET /api/auth/me 401 402.0ms
+[request] GET /api/posts/slug/imvura-n-inkuba-biteganyijwe-mu-bice-bitandukanye-by-u-rwanda-ku-wa-26-nzeri 200 2743.3ms
+[request] GET /api/comments/412?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 654.3ms
+[request] GET /api/radio 304 262.8ms
+[request] GET /api/advertisements 304 344.8ms
+[request] GET /api/posts 304 2240.3ms
+[request] POST /api/auth/login 200 973.0ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 1477.8ms
+[request] GET /api/auth/me 304 1400.9ms
+[request] GET /api/employees 200 1401.5ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 235.7ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[request] GET /api/auth/me 304 394.0ms
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 226.5ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[request] GET /api/employees 304 511.7ms
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 222.9ms
+[request] GET /api/employees 304 536.4ms
+[request] GET /api/employees 304 693.5ms
+[request] GET /api/chief-editors 304 2462.5ms
+[request] GET /api/chief-editors 304 588.7ms
+[request] GET /api/admin/posts 200 5461.1ms
+[request] GET /api/comments 200 1402.5ms
+[request] GET /api/chief-editors 304 1102.5ms
+[request] GET /api/comments 200 757.6ms
+[request] GET /api/chief-editors 304 522.0ms
+[request] GET /api/comments 200 491.1ms
+[request] GET /api/comments 200 554.7ms
+[request] GET /api/admin/posts 304 4245.3ms
+[request] GET /api/admin/posts 304 4224.6ms
+[request] GET /api/admin/posts 304 7795.0ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 308.0ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 307.9ms
+[request] GET /api/auth/me 304 245.8ms
+[request] GET /api/radio 304 239.1ms
+[request] GET /api/auth/me 304 246.5ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 251.3ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 249.9ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 319.9ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 270.0ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 290.4ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 337.5ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 938.2ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 271.4ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 275.3ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 376.3ms
+[request] GET /api/auth/me 304 340.9ms
+[request] GET /api/radio 304 240.5ms
+[request] GET /api/auth/me 304 271.4ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 310.0ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 406.6ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 249.1ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 351.6ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 248.0ms
+[request] GET /api/admin/posts 304 9370.1ms
+[request] GET /api/admin/posts 304 12471.2ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 255.1ms
+[request] GET /api/admin/analytics?startDate=6daysAgo&endDate=today 503 244.4ms
+[request] GET /api/admin/performance/daily?role=all 200 722.8ms
+[request] GET /api/admin/performance/daily?role=all 200 564.3ms
+[request] GET /api/radio 304 507.1ms
+[request] GET /api/admin/performance/daily?role=all 200 1415.0ms
+[request] GET /api/admin/performance/daily?role=all 200 606.3ms
+[request] GET /api/admin/performance/daily?role=all 200 479.6ms
+[request] GET /api/admin/performance/daily?role=all 200 488.7ms
+[request] GET /api/admin/performance/daily?role=all 200 991.4ms
+[request] GET /api/admin/performance/daily?role=all 200 585.8ms
+[request] GET /api/admin/performance/daily?role=all 200 710.1ms
+[request] GET /api/admin/performance/daily?role=all 200 497.1ms
+[request] GET /api/admin/performance/daily?role=all 200 1069.8ms
+[request] GET /api/admin/performance/daily?role=all 200 904.8ms
+[request] GET /api/admin/performance/daily?role=all 200 671.0ms
+[request] GET /api/admin/performance/daily?role=all 200 661.3ms
+[request] GET /api/admin/performance/daily?role=all 200 647.1ms
+[request] GET /api/admin/performance/daily?role=all 200 684.5ms
+[request] GET /api/admin/performance/daily?role=all 200 656.8ms
+[request] GET /api/admin/performance/daily?role=all 200 646.0ms
+[request] GET /api/admin/performance/daily?role=all 200 673.5ms
+[request] GET /api/admin/performance/daily?role=all 200 1609.7ms
+[request] GET /api/admin/performance/daily?role=all 200 665.2ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 313.8ms
+[analytics] Admin visitor request received {
+  method: 'GET',
+  path: '/api/admin/analytics/visitors',
+  authorizationHeaderPresent: true
+}
+[request] GET /api/employees 304 653.3ms
+[analytics] Admin visitor endpoint called {
+  preset: 'today',
+  propertyConfigured: false,
+  credentialsDetected: false
+}
+[request] GET /api/admin/analytics/visitors?preset=today 503 307.8ms
+[request] GET /api/employees 304 691.1ms
+[request] GET /api/chief-editors 304 709.9ms
+[request] GET /api/advertisements 304 326.5ms
+[request] GET /api/chief-editors 304 653.3ms
+[request] GET /api/comments 200 995.9ms
+[request] GET /api/comments 200 665.8ms
+[request] GET /api/admin/posts 200 12146.0ms
+[request] GET /api/admin/posts 304 11171.0ms
+[request] GET /api/admin/performance/daily?role=all 200 636.4ms
+[request] GET /api/admin/performance/daily?role=all 200 683.0ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 761.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 668.1ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 733.0ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 1289.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 674.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 503.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 505.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 512.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 494.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 505.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 500.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 600.0ms
+[404] No route matched: GET /main.c504d839caf973e59361.hot-update.json
+[request] GET /main.c504d839caf973e59361.hot-update.json 404 213.0ms
+[request] GET /api/auth/me 304 253.6ms
+[request] GET /api/radio 304 284.3ms
+[request] GET /api/auth/me 304 293.3ms
+[request] GET /api/auth/me 304 208.2ms
+[request] GET /api/advertisements 304 813.9ms
+[request] GET /api/auth/me 304 240.2ms
+[request] GET /api/posts 200 2124.9ms
+[request] GET /api/admin/performance/daily?role=all 200 495.7ms
+[request] GET /api/admin/performance/daily?role=all 200 569.1ms
+[request] GET /api/auth/me 304 258.4ms
+[request] GET /api/auth/me 304 250.8ms
+[request] GET /api/employees 304 2107.4ms
+[request] GET /api/chief-editors 304 706.6ms
+[request] GET /api/employees 304 739.2ms
+[request] GET /api/chief-editors 304 494.9ms
+[request] GET /api/comments 200 683.6ms
+[request] GET /api/comments 200 446.7ms
+[request] GET /api/admin/posts 200 4495.9ms
+[request] GET /api/admin/posts 304 2241.8ms
+[request] GET /api/admin/performance/daily?role=all 200 709.6ms
+[request] GET /api/admin/performance/daily?role=all 200 492.9ms
+[request] GET /api/admin/performance/daily?role=all 200 756.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 490.2ms
+[request] GET /api/admin/performance/daily?role=all 200 511.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 502.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 560.2ms
+[request] GET /api/admin/performance/daily?role=all 200 529.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 570.8ms
+[request] GET /api/admin/performance/daily?role=all 200 497.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 629.0ms
+[request] GET /api/admin/performance/daily?role=all 200 588.4ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 552.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 528.6ms
+[request] GET /api/admin/performance/daily?role=all 200 502.0ms
+[request] GET /api/admin/performance/daily?role=all 200 515.0ms
+[request] GET /api/admin/performance/daily?role=all 200 537.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 527.3ms
+[request] GET /api/admin/performance/daily?role=all 200 516.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 527.2ms
+[request] GET /api/admin/performance/daily?role=all 200 507.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 512.1ms
+[request] GET /api/admin/performance/daily?role=all 200 527.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 525.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 532.4ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 592.1ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 518.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 533.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 531.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 525.0ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 529.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 536.4ms
+[request] GET /api/admin/performance/daily?role=all 200 639.7ms
+[request] GET /api/admin/performance/daily?role=all 200 518.6ms
+[request] GET /api/admin/performance/daily?role=all 200 619.4ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-09-19&end=2026-09-25 200 554.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-08-29&end=2026-09-25 200 572.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 661.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 697.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 561.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 547.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 628.0ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 591.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 954.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 690.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 776.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 677.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 695.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 699.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 706.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 700.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 696.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 694.1ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 767.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 712.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 684.4ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 708.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 1015.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 687.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 614.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 597.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 582.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 536.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 524.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 543.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 598.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 563.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 530.1ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 520.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 543.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 547.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 543.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 537.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 511.1ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 573.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 539.8ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 520.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 569.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 520.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 556.0ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 553.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 548.0ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 528.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 200 579.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 401 258.7ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 401 289.6ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 401 269.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 401 258.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 401 270.9ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 500 8323.2ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 500 3823.3ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 500 1552.5ms
+[request] GET /api/admin/performance/weekly?role=all&start=2026-06-28&end=2026-09-25 500 2672.5ms
