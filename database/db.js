@@ -1162,6 +1162,74 @@ async function init() {
   );
 
   /* =======================================================
+     EMPLOYEE PERMISSIONS
+  ======================================================= */
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS permissions(
+      permission_key VARCHAR(100) PRIMARY KEY,
+      label VARCHAR(150) NOT NULL,
+      description TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  console.log(
+    "[database] permissions table ready."
+  );
+
+  const permissionDefinitions = [
+    ['view_all_posts', 'View All Posts', 'View the full public website article list when explicitly granted.'],
+    ['edit_post_text', 'Edit Post Text', 'Edit article title, summary, content, category, tags, and article details.'],
+    ['edit_post_image', 'Edit Post Image', 'Replace or update the featured image and image gallery for a post.'],
+    ['delete_own_pending_post', 'Delete Own Pending Post', 'Delete a pending post created by the employee.'],
+    ['edit_own_posts', 'Edit Own Posts', 'Edit posts created by the employee; submitted changes return to review.'],
+    ['approve_posts', 'Approve Posts', 'Approve submissions and publish them to the public website.'],
+    ['reject_posts', 'Reject Posts', 'Reject pending articles and return them for changes.'],
+    ['edit_any_post', 'Edit Any Post', 'Edit posts created by other employees or users when explicitly granted.'],
+    ['delete_any_post', 'Delete Any Post', 'Delete posts created by other employees or users when explicitly granted.'],
+    ['publish_approve_posts', 'Publish/Approve Posts', 'Move a post from pending to approved for publication.'],
+    ['manage_images', 'Manage Images', 'Upload, replace, or manage article images and gallery content.']
+  ];
+
+  for (const [permissionKey, label, description] of permissionDefinitions) {
+    await pool.execute(
+      `
+        INSERT INTO permissions (permission_key, label, description)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          label = VALUES(label),
+          description = VALUES(description)
+      `,
+      [permissionKey, label, description]
+    );
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_permissions(
+      employee_id INT NOT NULL,
+      permission_key VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+      PRIMARY KEY (employee_id, permission_key),
+
+      CONSTRAINT fk_employee_permissions_employee
+        FOREIGN KEY (employee_id)
+        REFERENCES employees(id)
+        ON DELETE CASCADE,
+
+      CONSTRAINT fk_employee_permissions_permission
+        FOREIGN KEY (permission_key)
+        REFERENCES permissions(permission_key)
+        ON DELETE CASCADE
+    )
+  `);
+
+  console.log(
+    "[database] employee_permissions table ready."
+  );
+
+  /* =======================================================
      COMMENTS
   ======================================================= */
 

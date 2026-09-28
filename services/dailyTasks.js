@@ -163,9 +163,8 @@ async function countCompletedArticles(user, startUtc, endUtc) {
   const endStr = utcSql(endUtc);
   const legacyName = user.full_name || user.email || '';
 
-  /* Split the legacy OR filter into two sargable branches so each one can
-     use a dedicated composite index (author_id, submitted_at, status) and
-     (Author, submitted_at, status) instead of scanning every row. */
+    /* Count first submissions, regardless of later review status. Split the
+      legacy OR filter so both author lookups can use their composite indexes. */
   const [rows] = await getPool().query(
     `
       SELECT
@@ -173,14 +172,13 @@ async function countCompletedArticles(user, startUtc, endUtc) {
           WHERE p.author_id = ?
             AND p.submitted_at >= ?
             AND p.submitted_at < ?
-            AND p.status IN ('approved', 'pending'))
+        )
         +
         (SELECT COUNT(*) FROM posts p
           WHERE p.author_id IS NULL
             AND p.Author = ?
             AND p.submitted_at >= ?
-            AND p.submitted_at < ?
-            AND p.status IN ('approved', 'pending'))
+            AND p.submitted_at < ?)
         AS cnt
     `,
     [

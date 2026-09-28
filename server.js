@@ -44,6 +44,18 @@ const {
   init,
   closePool
 } = require('./database/db');
+const {
+  PERMISSION_DEFINITIONS,
+  DEFAULT_EMPLOYEE_PERMISSION_KEYS,
+  normalizePermissionKey,
+  buildPermissionMap,
+  hasEmployeePermission,
+  isPrivilegedRole,
+  isPostOwner,
+  normalizePostStatus,
+  buildPostCapabilities,
+  attachPostCapabilities,
+} = require('./permissionRules');
 
 const app = express();
 
@@ -196,6 +208,85 @@ function userTableForRole(roleType) {
     default:
       return null;
   }
+}
+
+async function loadEmployeePermissionMap(employeeId) {
+  if (!employeeId) {
+    return {};
+  }
+
+  const pool = getPool();
+
+  const [rows] = await pool.query(
+    `
+      SELECT permission_key
+      FROM employee_permissions
+      WHERE employee_id = ?
+        AND permission_key <> 'edit_own_pending_post'
+    `,
+    [employeeId]
+  );
+
+  return buildPermissionMap(rows);
+}
+
+async function ensureEmployeeDefaultPermissions(employeeId) {
+  if (!employeeId) {
+    return;
+  }
+
+  const pool = getPool();
+
+  const permissionSet = new Set(
+    DEFAULT_EMPLOYEE_PERMISSION_KEYS.map((value) => normalizePermissionKey(value))
+  );
+
+  if (!permissionSet.size) {
+    return;
+  }
+
+  const [rows] = await pool.query(
+    `
+      SELECT permission_key
+      FROM employee_permissions
+      WHERE employee_id = ?
+    `,
+    [employeeId]
+  );
+
+  const current = new Set(
+    (rows || []).map((row) => normalizePermissionKey(row.permission_key))
+  );
+
+  const missing = [...permissionSet].filter((key) => !current.has(key));
+
+  if (!missing.length) {
+    return;
+  }
+
+  await pool.execute(
+    `
+      INSERT INTO employee_permissions (employee_id, permission_key)
+      VALUES ${missing.map(() => '(?, ?)').join(', ')}
+      ON DUPLICATE KEY UPDATE permission_key = permission_key
+    `,
+    missing.flatMap((key) => [employeeId, key])
+  );
+}
+
+async function getEmployeePermissionSummary(employeeId) {
+  const permissionMap = await loadEmployeePermissionMap(employeeId);
+
+  return PERMISSION_DEFINITIONS.map((permission) => ({
+    ...permission,
+    enabled: Boolean(permissionMap[permission.key]),
+  }));
+}
+
+/* Publish the backend-authoritative action map alongside a post list so the
+   dashboard only renders the actions the backend will actually accept. */
+function withPostCapabilities(user, rows) {
+  return attachPostCapabilities(user, rows);
 }
 
 /* =========================================================
@@ -1412,6 +1503,10 @@ async function requireAuth(
 
     req.user = rows[0];
 
+    if (req.user.role_type === 'employee') {
+      req.user.permissions = await loadEmployeePermissionMap(req.user.id);
+    }
+
     next();
 
   } catch (error) {
@@ -1473,20 +1568,31 @@ function requirePostManagement(
   res,
   next
 ) {
-  if (
-    !req.user ||
-    (
-      req.user.role_type !== 'admin' &&
-      req.user.role_type !== 'chief_editor'
-    )
-  ) {
+  if (!req.user) {
     return res.status(403).json({
-      error:
-        'Admin or Chief Editor permission required.'
+      error: 'Authentication required.'
     });
   }
 
-  next();
+  const isEmployeeRoleAction =
+    req.user.role_type === 'employee' && (
+      req.originalUrl.includes('/approve') ||
+      req.originalUrl.includes('/reject') ||
+      req.originalUrl.includes('/review')
+    );
+
+  if (
+    req.user.role_type === 'admin' ||
+    req.user.role_type === 'chief_editor' ||
+    isEmployeeRoleAction
+  ) {
+    return next();
+  }
+
+  return res.status(403).json({
+    error:
+      'Admin or Chief Editor permission required.'
+  });
 }
 
 /* =========================================================
@@ -3196,6 +3302,18 @@ app.put(
       const existing =
         existingRows[0];
 
+      if (req.user.role_type === 'employee') {
+        const canApprove =
+          hasEmployeePermission(req.user, 'approve_posts') ||
+          hasEmployeePermission(req.user, 'publish_approve_posts');
+
+        if (!canApprove) {
+          return res.status(403).json({
+            error: 'You do not have permission to approve posts.'
+          });
+        }
+      }
+
       if (
         existing.status ===
         'approved'
@@ -3336,6 +3454,14 @@ app.put(
           error:
             'Post not found.'
         });
+      }
+
+      if (req.user.role_type === 'employee') {
+        if (!hasEmployeePermission(req.user, 'reject_posts')) {
+          return res.status(403).json({
+            error: 'You do not have permission to reject posts.'
+          });
+        }
       }
 
       const rejectionReason =
@@ -3830,9 +3956,10 @@ app.post(
               published_at,
               rejection_reason,
               approved_by,
-              approved_at
+              approved_at,
+              author_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
           `,
           [
             String(title).trim(),
@@ -3859,7 +3986,10 @@ app.post(
             seoKeywordsValue,
             publishedAtValue,
             approvedBy,
-            approvedAt
+            approvedAt,
+            ['employee', 'chief_editor'].includes(req.user.role_type)
+              ? req.user.id
+              : null
           ]
         );
 
@@ -3881,13 +4011,11 @@ app.post(
         await getPool().execute(
           `
             UPDATE posts
-            SET submitted_at = ?,
-                author_id = ?
+            SET submitted_at = ?
             WHERE id = ?
           `,
           [
             new Date().toISOString().slice(0, 19).replace('T', ' '),
-            req.user.id,
             result.insertId,
           ]
         );
@@ -4023,35 +4151,91 @@ app.put(
       const existing =
         existingRows[0];
 
+      const featuredFile =
+        req.files &&
+          req.files.image &&
+          req.files.image[0]
+          ? req.files.image[0]
+          : null;
+
+      const galleryFiles =
+        req.files &&
+          req.files.images
+          ? req.files.images
+          : [];
+
+      const requestedTextUpdate =
+        title !== undefined ||
+        category !== undefined ||
+        description !== undefined ||
+        youtube_url !== undefined ||
+        author !== undefined ||
+        tags !== undefined ||
+        location !== undefined ||
+        summary !== undefined ||
+        subtitle !== undefined ||
+        excerpt !== undefined ||
+        seo_title !== undefined ||
+        seo_description !== undefined ||
+        seo_keywords !== undefined ||
+        status !== undefined ||
+        req.body.content_blocks !== undefined;
+
+      const requestedImageUpdate = Boolean(featuredFile || galleryFiles.length > 0);
+
       if (
         userRole === 'employee'
       ) {
-        const employeeName =
-          req.user.full_name ||
-          req.user.email;
+        const capabilities = buildPostCapabilities(req.user, existing);
+        const employeeOwnsPost = capabilities.isOwner;
 
-        /* An employee owns the article and may keep working on it while
-           it is still a draft or waiting for review. Once it has been
-           approved or sent back, only an Admin / Chief Editor can
-           change it. */
-        const editableStatuses = [
-          'draft',
-          'pending'
-        ];
-
+        /* Text fields and images are gated separately so an employee can be
+           allowed to rewrite copy without touching artwork, and vice versa. */
         if (
-          existing.Author !==
-            employeeName ||
-          !editableStatuses.includes(
-            existing.status
-          )
+          requestedTextUpdate &&
+          !capabilities.canEditText
         ) {
           return res.status(403).json({
-            message:
-              'Employees can only edit their own draft or pending posts.',
-            error:
-              'Employees can only edit their own draft or pending posts.'
+            error: requestedImageUpdate && !capabilities.canEditImage
+              ? 'You do not have permission to edit this post.'
+              : employeeOwnsPost
+                ? 'You do not have permission to edit your pending post.'
+                : 'You do not have permission to edit this post.'
           });
+        }
+
+        if (
+          requestedImageUpdate &&
+          !capabilities.canEditImage
+        ) {
+          return res.status(403).json({
+            error:
+              'You do not have permission to change this post image.'
+          });
+        }
+
+        /* Status transitions stay a separate grant: seeing a post never lets an
+           employee move it into (or out of) publication. */
+        if (
+          encodedStatus &&
+          encodedStatus !== normalizePostStatus(existing.status) &&
+          ['approved', 'rejected', 'pending'].includes(encodedStatus)
+        ) {
+          const canApprove =
+            hasEmployeePermission(req.user, 'approve_posts') ||
+            hasEmployeePermission(req.user, 'publish_approve_posts');
+          const canReject = hasEmployeePermission(req.user, 'reject_posts');
+          const targetIsApproved = encodedStatus === 'approved';
+
+          if (
+            (targetIsApproved && !canApprove) ||
+            (encodedStatus === 'rejected' && !canReject)
+          ) {
+            return res.status(403).json({
+              error:
+                'You do not have permission to change the post status.'
+            });
+          }
         }
       }
 
@@ -4104,19 +4288,6 @@ app.put(
         req.body.content_blocks !== '';
 
       let blocks = blocksChanged ? incomingBlocks : existingBlocks;
-
-      const featuredFile =
-        req.files &&
-          req.files.image &&
-          req.files.image[0]
-          ? req.files.image[0]
-          : null;
-
-      const galleryFiles =
-        req.files &&
-          req.files.images
-          ? req.files.images
-          : [];
 
       if (featuredFile) {
         try {
@@ -4458,20 +4629,25 @@ app.put(
         ]
       );
 
-      if (
-        updatedStatus !== 'draft' &&
-        ['employee', 'chief_editor'].includes(req.user.role_type)
-      ) {
+      const isOwnDraft =
+        existing.status === 'draft' &&
+        updatedStatus === 'pending' &&
+        ['employee', 'chief_editor'].includes(req.user.role_type) &&
+        (
+          Number(existing.author_id) === Number(req.user.id) ||
+          (!existing.author_id && [req.user.full_name, req.user.email]
+            .filter(Boolean)
+            .includes(existing.Author))
+        );
+
+      if (isOwnDraft) {
         await pool.execute(
           `
-            UPDATE posts
-            SET submitted_at = IFNULL(submitted_at, ?),
-                author_id = IFNULL(author_id, ?)
-            WHERE id = ?
+            UPDATE posts SET submitted_at = ?
+            WHERE id = ? AND submitted_at IS NULL
           `,
           [
             new Date().toISOString().slice(0, 19).replace('T', ' '),
-            req.user.id,
             id,
           ]
         );
@@ -4610,26 +4786,27 @@ app.delete(
         req.user.role_type ===
         'employee'
       ) {
-        const employeeName =
-          req.user.full_name ||
-          req.user.email;
+        const capabilities = buildPostCapabilities(req.user, post);
 
+        /* Never removable by an employee: anything already published. */
         if (
-          String(post.Author || '').trim() !==
-          String(employeeName || '').trim()
-        ) {
-          return res.status(403).json({
-            error:
-              'You can only delete your own posts.'
-          });
-        }
-
-        if (
-          post.status === 'approved'
+          normalizePostStatus(post.status) === 'approved'
         ) {
           return res.status(403).json({
             error:
               'Published posts cannot be deleted. Ask the Chief Editor or Admin for help.'
+          });
+        }
+
+        /* Own posts need "Delete Own Pending Post"; other people's posts need
+           the separate, stronger "Delete Any Post" grant. */
+        if (
+          !capabilities.canDelete
+        ) {
+          return res.status(403).json({
+            error: capabilities.isOwner
+              ? 'You do not have permission to delete your post.'
+              : 'You do not have permission to delete this post.'
           });
         }
       } else if (
@@ -4688,7 +4865,30 @@ app.delete(
 
 /* =========================================================
    MY POSTS
-========================================================= */
+   ========================================================= */
+
+/* Card-level projection for the "View all posts" management list. Selecting
+   p.* here shipped the heavy per-post MEDIUMTEXT blobs (content_blocks,
+   images) for every article in the database, which turned one workspace load
+   into an ~1.8 MB response and starved the browser. This list only renders
+   cards, so the blobs are omitted and the full record is fetched on demand
+   through GET /api/my-posts/:id. `author_id` is kept because it drives the
+   backend capability map, and `Author` is kept for the author lookup. */
+const EMPLOYEE_ALL_POSTS_SELECT = `
+  p.id,
+  p.author_id,
+  p.title,
+  p.slug,
+  p.category,
+  p.status,
+  p.image,
+  p.youtube_url,
+  p.Author,
+  p.Author AS author_name,
+  p.author_profile_image,
+  p.createdDate,
+  SUBSTRING(p.description, 1, 600) AS description
+`;
 
 app.get(
   '/api/my-posts',
@@ -4709,25 +4909,59 @@ app.get(
         req.user.full_name ||
         req.user.email;
 
+      /* "scope=all" is only honoured when the admin explicitly granted
+         "View All Posts". Requesting it without the permission silently falls
+         back to the employee's own posts, so the API can never be used to widen
+         visibility. */
+      const wantsAllPosts = ['all', 'true', '1'].includes(
+        String(req.query.scope || '').trim().toLowerCase()
+      );
+
+      const canViewAllPosts = isPrivilegedRole(req.user)
+        || hasEmployeePermission(req.user, 'view_all_posts');
+
+      const scopeAll = wantsAllPosts && canViewAllPosts;
+
       const filters = parsePostListFilters(req);
 
+      /* Own-post matching covers the numeric owner column *and* the legacy
+         author text column, so employees keep their history across the
+         author_id migration and never lose access to their own posts. */
+      const ownPostsWhere =
+        '(p.author_id = ? OR p.Author = ? OR p.Author = ?)';
+
+      const ownPostsParams =
+        authorName === req.user.email
+          ? [req.user.id, authorName]
+          : [req.user.id, authorName, req.user.email];
+
       const { rows, total, page, limit } = await queryPostList({
-        fixedWhere: 'p.Author = ?',
-        fixedParams: [authorName],
+        fixedWhere: scopeAll ? '1=1' : ownPostsWhere,
+        fixedParams: scopeAll ? [] : ownPostsParams,
         filters,
+        /* The "own posts" list stays full-fidelity because the article
+           details modal reads content_blocks. Only the "all posts" list is
+           projected down to card columns. */
+        selectFields: scopeAll ? EMPLOYEE_ALL_POSTS_SELECT : undefined,
       });
+
+      /* Every post carries the backend-authoritative action map so the
+         dashboard renders exactly the buttons the API will accept. */
+      const posts = withPostCapabilities(req.user, rows);
 
       if (filters.hasPaging) {
         return res.json({
-          posts: rows,
+          posts,
           total,
           page,
           pageCount: Math.ceil(total / limit),
           limit,
+          scope: scopeAll ? 'all' : 'own',
+          permissions: req.user.permissions || {},
         });
       }
 
-      res.json(rows);
+      res.json(posts);
 
     } catch (error) {
       console.error(
@@ -4738,6 +4972,59 @@ app.get(
       res.status(500).json({
         error:
           'Unable to fetch your posts.'
+      });
+    }
+  }
+);
+
+/* Single-post read for the employee workspace. Mirrors the list rules: an
+   employee may open their own post, or any post when "View All Posts" is
+   granted. Every other post stays closed. */
+app.get(
+  '/api/my-posts/:id',
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (
+        req.user.role_type !==
+        'employee'
+      ) {
+        return res.status(403).json({
+          error:
+            'Employee permission required.'
+        });
+      }
+
+      const [rows] = await getPool().query(
+        `SELECT * FROM posts WHERE id = ? LIMIT 1`,
+        [req.params.id]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          error: 'Post not found.'
+        });
+      }
+
+      const capabilities = buildPostCapabilities(req.user, rows[0]);
+
+      if (!capabilities.canView) {
+        return res.status(403).json({
+          error: 'You do not have permission to view this post.'
+        });
+      }
+
+      const [post] = withPostCapabilities(req.user, rows);
+
+      res.json(post);
+    } catch (error) {
+      console.error(
+        'Fetch employee post error:',
+        error
+      );
+
+      res.status(500).json({
+        error: 'Unable to fetch this post.'
       });
     }
   }
@@ -7598,6 +7885,149 @@ app.get(
   }
 );
 
+app.get(
+  '/api/permissions',
+  requireAuth,
+  async (req, res) => {
+    try {
+      res.json(PERMISSION_DEFINITIONS);
+    } catch (error) {
+      console.error('Fetch permission definitions error:', error);
+      res.status(500).json({ error: 'Unable to fetch permissions.' });
+    }
+  }
+);
+
+app.get(
+  '/api/admin/employees/:id/permissions',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const employeeId = Number(req.params.id);
+
+      if (!employeeId) {
+        return res.status(400).json({ error: 'Employee ID is required.' });
+      }
+
+      const [employeeRows] = await getPool().query(
+        `
+          SELECT id, full_name, nickname, email, role, status
+          FROM employees
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [employeeId]
+      );
+
+      if (!employeeRows.length) {
+        return res.status(404).json({ error: 'Employee not found.' });
+      }
+
+      const permissions = await getEmployeePermissionSummary(employeeId);
+
+      res.json({
+        employee: employeeRows[0],
+        permissions,
+      });
+    } catch (error) {
+      console.error('Fetch employee permissions error:', error);
+      res.status(500).json({ error: 'Unable to fetch employee permissions.' });
+    }
+  }
+);
+
+app.put(
+  '/api/admin/employees/:id/permissions',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      /* Defence in depth alongside `requireAdmin`: permissions are an admin
+         concern only, so no other role — least of all the employee being
+         edited — can ever grant, widen or revoke their own permissions. */
+      if (
+        req.user.role_type !== 'admin'
+      ) {
+        return res.status(403).json({
+          error: 'Admin permission required.'
+        });
+      }
+
+      const employeeId = Number(req.params.id);
+      const requestedPermissions = Array.isArray(req.body?.permissions)
+        ? req.body.permissions
+        : [];
+
+      if (!employeeId) {
+        return res.status(400).json({ error: 'Employee ID is required.' });
+      }
+
+      /* Admins are not employees; the target must be a real employee row, so an
+         admin cannot accidentally rewrite their own or another role's access. */
+      if (Number(req.user.id) === employeeId) {
+        return res.status(400).json({
+          error: 'You cannot change your own permissions.'
+        });
+      }
+
+      const [employeeRows] = await getPool().query(
+        `SELECT id, full_name, email FROM employees WHERE id = ? LIMIT 1`,
+        [employeeId]
+      );
+
+      if (!employeeRows.length) {
+        return res.status(404).json({ error: 'Employee not found.' });
+      }
+
+      const validPermissionKeys = new Set(
+        PERMISSION_DEFINITIONS.map((permission) => permission.key)
+      );
+
+      const cleanedPermissions = [...new Set(
+        requestedPermissions
+          .map((entry) => normalizePermissionKey(entry))
+          .filter((value) => validPermissionKeys.has(value))
+      )];
+
+      await getPool().execute(
+        `DELETE FROM employee_permissions WHERE employee_id = ?`,
+        [employeeId]
+      );
+
+      if (cleanedPermissions.length) {
+        await getPool().execute(
+          `
+            INSERT INTO employee_permissions (employee_id, permission_key)
+            VALUES ${cleanedPermissions.map(() => '(?, ?)').join(', ')}
+          `,
+          cleanedPermissions.flatMap((key) => [employeeId, key])
+        );
+      }
+
+      const permissions = await getEmployeePermissionSummary(employeeId);
+
+      await recordAudit({
+        actorRole: req.user.role_type,
+        actorName: req.user.full_name || req.user.email,
+        action: 'employee.permissions.update',
+        targetType: 'employee',
+        targetId: employeeId,
+        targetTitle: employeeRows[0].full_name || employeeRows[0].email,
+        newValue: cleanedPermissions.join(', ') || 'none',
+      });
+
+      res.json({
+        message: 'Employee permissions saved successfully.',
+        permissions,
+      });
+    } catch (error) {
+      console.error('Update employee permissions error:', error);
+      res.status(500).json({ error: 'Unable to update employee permissions.' });
+    }
+  }
+);
+
 app.post(
   '/api/employees',
   requireAuth,
@@ -7754,6 +8184,8 @@ app.post(
           `,
           [result.insertId]
         );
+
+      await ensureEmployeeDefaultPermissions(result.insertId);
 
       await recordAudit({
         actorRole: req.user.role_type,
@@ -8721,49 +9153,56 @@ app.post(
 
       clearLoginRateLimit(clientIp, cleanEmail);
 
+      const responseUser = {
+        id:
+          user.id,
+
+        email:
+          user.email,
+
+        full_name:
+          user.full_name,
+
+        nickname:
+          userTable ===
+          'employees'
+            ? normalizeNickname(
+                user.nickname
+              )
+            : null,
+
+        phone:
+          user.phone ||
+          null,
+
+        profile_image:
+          user.profile_image ||
+          user.profile_image_url ||
+          null,
+
+        profile_image_url:
+          user.profile_image_url ||
+          user.profile_image ||
+          null,
+
+        profile_image_public_id:
+          user.profile_image_public_id ||
+          null,
+
+        role:
+          userRole,
+
+        role_type:
+          roleType,
+
+        permissions:
+          roleType === 'employee'
+            ? await loadEmployeePermissionMap(user.id)
+            : {}
+      };
+
       res.json({
-        user: {
-          id:
-            user.id,
-
-          email:
-            user.email,
-
-          full_name:
-            user.full_name,
-
-          nickname:
-            userTable ===
-            'employees'
-              ? normalizeNickname(
-                  user.nickname
-                )
-              : null,
-
-          phone:
-            user.phone ||
-            null,
-
-          profile_image:
-            user.profile_image ||
-            user.profile_image_url ||
-            null,
-
-          profile_image_url:
-            user.profile_image_url ||
-            user.profile_image ||
-            null,
-
-          profile_image_public_id:
-            user.profile_image_public_id ||
-            null,
-
-          role:
-            userRole,
-
-          role_type:
-            roleType
-        },
+        user: responseUser,
 
         token
       });
@@ -8855,7 +9294,12 @@ app.get(
           role,
 
           role_type:
-            req.user.role_type
+            req.user.role_type,
+
+          permissions:
+            req.user.role_type === 'employee'
+              ? (req.user.permissions || await loadEmployeePermissionMap(req.user.id))
+              : {}
         }
       });
 
