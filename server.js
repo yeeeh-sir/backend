@@ -20,6 +20,11 @@ const {
   invalidateAdvertisements,
   invalidateRadioCaches,
 } = require('./services/cache');
+const {
+  isAmakuruCategory,
+  normalizeAmakuruDepartment,
+  requiresAmakuruDepartmentOnUpdate,
+} = require('./services/amakuruDepartments');
 
 const { createPublicRateLimiter } = require('./middleware/rateLimiter');
 const {
@@ -1291,9 +1296,9 @@ async function queryPostList({ fixedWhere = '1=1', fixedParams = [], filters = {
     params.push(`%${filters.author}%`);
   }
   if (filters.search) {
-    conditions.push('(p.title LIKE ? OR p.description LIKE ? OR p.Author LIKE ? OR p.category LIKE ?)');
+    conditions.push('(p.title LIKE ? OR p.description LIKE ? OR p.Author LIKE ? OR p.category LIKE ? OR p.amakuru_department LIKE ?)');
     const like = `%${filters.search}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like);
   }
   if (filters.from) {
     conditions.push('p.createdDate >= ?');
@@ -1819,7 +1824,7 @@ app.get(
         Object.assign(filters, addMaxRowsFilter(filters));
       }
 
-      const cacheKey = 'pub:posts:list:v3:' + JSON.stringify({
+      const cacheKey = 'pub:posts:list:v4:' + JSON.stringify({
         search: filters.search,
         category: filters.category,
         hasPaging: filters.hasPaging,
@@ -1839,6 +1844,7 @@ app.get(
           p.title,
           p.slug,
           p.category,
+          p.amakuru_department,
           p.image,
           p.createdDate,
           p.youtube_url,
@@ -1902,11 +1908,11 @@ app.get(
       const likeTerms = terms.map((term) => `%${term}%`);
       const searchable = `(
         p.title LIKE ? OR p.description LIKE ? OR p.content_blocks LIKE ? OR
-        p.category LIKE ? OR p.tags LIKE ? OR p.summary LIKE ? OR p.excerpt LIKE ? OR
+        p.category LIKE ? OR p.amakuru_department LIKE ? OR p.tags LIKE ? OR p.summary LIKE ? OR p.excerpt LIKE ? OR
         p.seo_keywords LIKE ? OR p.location LIKE ?
       )`;
       const whereSql = terms.map(() => searchable).join(' AND ');
-      const params = terms.flatMap((term) => Array(9).fill(`%${term}%`));
+      const params = terms.flatMap((term) => Array(10).fill(`%${term}%`));
 
       const [[countRow]] = await getPool().query(
         `SELECT COUNT(*) AS total FROM posts p WHERE p.status = 'approved' AND ${whereSql}`,
@@ -1915,15 +1921,15 @@ app.get(
 
       const total = Number(countRow.total || 0);
       const offset = (page - 1) * limit;
-      const relevanceParams = Array(5).fill(likeTerms[0]);
+      const relevanceParams = Array(6).fill(likeTerms[0]);
       const [rows] = await getPool().query(
         `
-          SELECT p.id, p.title, p.slug, p.category, p.image, p.createdDate,
+          SELECT p.id, p.title, p.slug, p.category, p.amakuru_department, p.image, p.createdDate,
             p.Author, p.author_profile_image, p.summary, p.excerpt,
             SUBSTRING(p.description, 1, 400) AS description,
             CASE
               WHEN p.title LIKE ? THEN 100
-              WHEN p.category LIKE ? OR p.tags LIKE ? THEN 70
+              WHEN p.category LIKE ? OR p.amakuru_department LIKE ? OR p.tags LIKE ? THEN 70
               WHEN p.summary LIKE ? OR p.excerpt LIKE ? THEN 50
               ELSE 10
             END AS relevance
@@ -2117,7 +2123,7 @@ app.get(
           : [];
 
       const cacheKey =
-        'pub:post:next:' +
+        'pub:post:next:v2:' +
         (cursor
           ? `${cursor.id}`
           : 'first');
@@ -2135,6 +2141,7 @@ app.get(
                     p.title,
                     p.slug,
                     p.category,
+                    p.amakuru_department,
                     p.image,
                     p.createdDate,
                     p.published_at,
@@ -3050,7 +3057,7 @@ app.get(
       const offset = (page - 1) * limit;
       const [posts] = await getPool().query(
         `
-          SELECT p.id, p.title, p.Author AS author, p.category, p.status, p.image,
+          SELECT p.id, p.title, p.Author AS author, p.category, p.amakuru_department, p.status, p.image,
             p.createdDate AS created_at, p.updated_at, p.published_at, p.views
           FROM posts p
           WHERE ${whereSql}
@@ -3321,6 +3328,17 @@ app.put(
         return res.status(400).json({
           error:
             'This post is already approved.'
+        });
+      }
+
+      /* An approved Amakuru article is the one every visitor sees, so it has
+         to belong to a sub-department. Without this guard a post created as a
+         draft (which may be saved without a department) can be published and
+         then appear in none of the department pages. */
+      if (isAmakuruCategory(existing.category) && !existing.amakuru_department) {
+        return res.status(400).json({
+          error:
+            'Choose an Amakuru department before approving this post.'
         });
       }
 
@@ -3683,6 +3701,7 @@ app.post(
       const {
         title,
         category,
+        amakuru_department,
         description,
         youtube_url,
         author,
@@ -3712,6 +3731,23 @@ app.post(
       const isDraftRequest =
         requestedStatus ===
         'draft';
+
+      const requestedDepartment = String(amakuru_department || '').trim();
+      const amakuruDepartment = isAmakuruCategory(category)
+        ? normalizeAmakuruDepartment(requestedDepartment)
+        : null;
+
+      if (isAmakuruCategory(category) && requestedDepartment && !amakuruDepartment) {
+        return res.status(400).json({
+          error: 'Choose a valid Amakuru department.'
+        });
+      }
+
+      if (isAmakuruCategory(category) && !isDraftRequest && !amakuruDepartment) {
+        return res.status(400).json({
+          error: 'Choose an Amakuru department before submitting this post.'
+        });
+      }
 
       if (
         !title ||
@@ -3936,6 +3972,7 @@ app.post(
               title,
               slug,
               category,
+              amakuru_department,
               description,
               image,
               images,
@@ -3959,12 +3996,13 @@ app.post(
               approved_at,
               author_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
           `,
           [
             String(title).trim(),
             '',
             String(category).trim(),
+            amakuruDepartment,
             description
               ? String(description)
               : '',
@@ -4105,6 +4143,7 @@ app.put(
       const {
         title,
         category,
+        amakuru_department,
         description,
         youtube_url,
         author,
@@ -4178,6 +4217,7 @@ app.put(
         seo_title !== undefined ||
         seo_description !== undefined ||
         seo_keywords !== undefined ||
+        amakuru_department !== undefined ||
         status !== undefined ||
         req.body.content_blocks !== undefined;
 
@@ -4386,6 +4426,17 @@ app.put(
           ? youtube_url || null
           : existing.youtube_url;
 
+      const updatedCategory = category !== undefined && String(category).trim()
+        ? String(category).trim()
+        : existing.category;
+      const departmentInput = req.body.amakuru_department !== undefined
+        ? req.body.amakuru_department
+        : existing.amakuru_department;
+      const departmentValue = String(departmentInput || '').trim();
+      const amakuruDepartment = isAmakuruCategory(updatedCategory)
+        ? normalizeAmakuruDepartment(departmentValue)
+        : null;
+
       /* Security: employees keep their own byline, so the nickname shown
          on the article always belongs to the signed-in reporter. */
       const updatedAuthor =
@@ -4481,6 +4532,23 @@ app.put(
         }
       }
 
+      const departmentRequired = requiresAmakuruDepartmentOnUpdate({
+        category: updatedCategory,
+        updatedStatus,
+      });
+
+      if (isAmakuruCategory(updatedCategory) && departmentValue && !amakuruDepartment) {
+        return res.status(400).json({
+          error: 'Choose a valid Amakuru department.'
+        });
+      }
+
+      if (departmentRequired && !amakuruDepartment) {
+        return res.status(400).json({
+          error: 'Choose an Amakuru department before submitting this post.'
+        });
+      }
+
       /* A draft may be saved incomplete, but an article that goes to
          review must have readable content. */
       const nextDescription =
@@ -4554,6 +4622,7 @@ app.put(
             title = ?,
             slug = ?,
             category = ?,
+            amakuru_department = ?,
             description = ?,
             image = ?,
             images = ?,
@@ -4580,10 +4649,9 @@ app.put(
           incomingTitle,
           normalizedUpdatedSlug,
 
-          category !== undefined &&
-            String(category).trim()
-            ? String(category).trim()
-            : existing.category,
+          updatedCategory,
+
+          amakuruDepartment,
 
           description !== undefined
             ? description
@@ -4880,6 +4948,7 @@ const EMPLOYEE_ALL_POSTS_SELECT = `
   p.title,
   p.slug,
   p.category,
+  p.amakuru_department,
   p.status,
   p.image,
   p.youtube_url,
@@ -5276,7 +5345,7 @@ app.get(
       const { slug } = req.params;
 
       const body = await withCache(
-        'pub:category:v2:' + String(slug),
+        'pub:category:v3:' + String(slug),
         PUBLIC_CACHE_TTL.categoryDetail,
         async () => {
           const [rows] = await getPool().query(
@@ -5316,6 +5385,7 @@ app.get(
           p.title,
           p.slug,
           p.category,
+          p.amakuru_department,
           p.image,
           p.createdDate,
           p.youtube_url,

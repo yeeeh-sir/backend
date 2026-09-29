@@ -1009,6 +1009,7 @@ async function init() {
     ["seo_description", "TEXT DEFAULT NULL"],
     ["seo_keywords", "VARCHAR(500) DEFAULT NULL"],
     ["published_at", "DATETIME DEFAULT NULL"],
+    ["amakuru_department", "VARCHAR(100) DEFAULT NULL"],
   ];
 
   for (const [column, definition] of postWorkflowColumns) {
