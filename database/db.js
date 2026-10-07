@@ -2174,6 +2174,54 @@ async function init() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS radio_settings (
+      id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+      stream_url VARCHAR(1000) DEFAULT NULL,
+      station_page_url VARCHAR(1000) DEFAULT NULL,
+      direct_audio_url VARCHAR(1000) DEFAULT NULL,
+      updated_at DATETIME DEFAULT NULL
+    )
+  `);
+
+  await pool.query(`
+    INSERT IGNORE INTO radio_settings (id, stream_url)
+    VALUES (1, NULL)
+  `);
+
+  for (const [column, definition] of [
+    ["station_page_url", "VARCHAR(1000) DEFAULT NULL"],
+    ["direct_audio_url", "VARCHAR(1000) DEFAULT NULL"],
+  ]) {
+    if (!(await columnExists("radio_settings", column))) {
+      await safeAlter(
+        `radio_settings.${column}`,
+        `ALTER TABLE radio_settings ADD COLUMN ${column} ${definition}`
+      );
+    }
+  }
+
+  await pool.query(`
+    UPDATE radio_settings
+    SET station_page_url = COALESCE(
+      NULLIF(station_page_url, ''),
+      NULLIF(stream_url, ''),
+      CASE
+        WHEN direct_audio_url LIKE 'https://gocast.fm/station/%' THEN direct_audio_url
+      END,
+      'https://gocast.fm/station/rubavutoday-radio'
+    ),
+    stream_url = NULL,
+    direct_audio_url = NULL
+    WHERE id = 1
+      AND (
+        station_page_url IS NULL
+        OR station_page_url = ''
+        OR stream_url IS NOT NULL
+        OR direct_audio_url IS NOT NULL
+      )
+  `);
+
   console.log(
     "[database] radio_items table ready."
   );

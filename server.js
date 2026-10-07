@@ -7194,6 +7194,75 @@ function isValidHttpUrl(value) {
   }
 }
 
+function isValidStationUrl(value) {
+  const str = String(value || '').trim();
+  if (!str || str.length > 1000) return false;
+  try {
+    const parsed = new URL(str);
+    return (
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      Boolean(parsed.hostname) &&
+      !parsed.username &&
+      !parsed.password
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function readRadioSettings() {
+  const [rows] = await getPool().query(
+    'SELECT station_page_url FROM radio_settings WHERE id = 1'
+  );
+  const stationPageUrl = rows[0]?.station_page_url || '';
+  return {
+    station_page_url: stationPageUrl,
+    stationPageUrl
+  };
+}
+
+async function updateRadioSettings(req, res) {
+  try {
+    const body = req.body || {};
+    const rawValue =
+      body.station_page_url !== undefined
+        ? body.station_page_url
+        : body.stationPageUrl;
+
+    const stationPageUrl = String(rawValue ?? '').trim();
+
+    if (!isValidStationUrl(stationPageUrl)) {
+      return res.status(400).json({
+        error: 'Enter a valid HTTP(S) station URL.'
+      });
+    }
+
+    await getPool().execute(
+      `
+        INSERT INTO radio_settings (id, station_page_url, updated_at)
+        VALUES (1, ?, NOW())
+        ON DUPLICATE KEY UPDATE
+          station_page_url = VALUES(station_page_url),
+          updated_at = NOW()
+      `,
+      [stationPageUrl]
+    );
+
+    await invalidateRadioCaches();
+
+    res.json({
+      station_page_url: stationPageUrl,
+      stationPageUrl
+    });
+
+  } catch (error) {
+    console.error('Update radio settings error:', error);
+    res.status(500).json({
+      error: 'Unable to save radio settings.'
+    });
+  }
+}
+
 function cleanRadioText(value, maxLength) {
   if (value === undefined || value === null) return '';
   return String(value)
@@ -7231,11 +7300,15 @@ async function buildPublicRadio() {
         ORDER BY queue_order ASC, id ASC
       `
     );
-
   const items = rows;
   const nowPlaying = items.find((item) => item.now_playing) || null;
+  const settings = await readRadioSettings();
 
-  return { nowPlaying, items };
+  return {
+    nowPlaying,
+    items,
+    stationPageUrl: settings.stationPageUrl,
+  };
 }
 
 app.get(
@@ -7253,6 +7326,7 @@ app.get(
         sMaxAge: 600,
         swr: 600,
       });
+      res.set('Cache-Control', 'no-store');
 
       res.json(data);
 
@@ -7280,6 +7354,7 @@ app.get(
         sMaxAge: 600,
         swr: 600,
       });
+      res.set('Cache-Control', 'no-store');
 
       res.json(data);
 
@@ -7316,6 +7391,25 @@ app.get(
       });
     }
   }
+);
+
+app.get(
+  '/api/radio/settings',
+  async (req, res) => {
+    try {
+      res.json(await readRadioSettings());
+    } catch (error) {
+      console.error('Fetch radio settings error:', error);
+      res.status(500).json({ error: 'Unable to fetch radio settings.' });
+    }
+  }
+);
+
+app.put(
+  '/api/radio/settings',
+  requireAuth,
+  requireAdmin,
+  updateRadioSettings
 );
 
 app.post(
@@ -7395,7 +7489,7 @@ app.post(
               queue_order,
               created_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             cleanTitle,
