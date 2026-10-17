@@ -1624,6 +1624,7 @@ async function requireAuth(
             profile_image,
             profile_image_url,
             profile_image_public_id,
+            language,
             NULL AS role,
             status,
             'admin' AS role_type
@@ -1646,6 +1647,7 @@ async function requireAuth(
             profile_image,
             profile_image_url,
             profile_image_public_id,
+            language,
             NULL AS role,
             status,
             'chief_editor' AS role_type
@@ -1668,6 +1670,7 @@ async function requireAuth(
             profile_image,
             profile_image_url,
             profile_image_public_id,
+            language,
             role,
             status,
             'employee' AS role_type
@@ -9676,6 +9679,10 @@ app.post(
           user.profile_image_public_id ||
           null,
 
+        language:
+          user.language ||
+          null,
+
         role:
           userRole,
 
@@ -9776,6 +9783,10 @@ app.get(
 
           profile_image_public_id:
             req.user.profile_image_public_id ||
+            null,
+
+          language:
+            req.user.language ||
             null,
 
           role,
@@ -10044,6 +10055,10 @@ app.put(
 
           profile_image_public_id:
             req.user.profile_image_public_id ||
+            null,
+
+          language:
+            req.user.language ||
             null,
 
           role:
@@ -10456,6 +10471,78 @@ app.put(
         error:
           error.message ||
           'Unable to update profile.'
+      });
+    }
+  }
+);
+
+/* =========================================================
+   PREFERRED LANGUAGE
+   Persists the language the signed-in user picked on the site so it
+   follows them to any other device/browser they log in from.
+========================================================= */
+
+const SUPPORTED_LANGUAGE_CODES = [
+  'rw',
+  'en',
+  'fr',
+  'sw'
+];
+
+app.put(
+  '/api/profile/language',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const value =
+        String(
+          (req.body || {}).language || ''
+        ).trim();
+
+      if (
+        !SUPPORTED_LANGUAGE_CODES.includes(
+          value
+        )
+      ) {
+        return res.status(400).json({
+          error:
+            'Unsupported language.'
+        });
+      }
+
+      const table =
+        req.user.role_type === 'admin'
+          ? 'admins'
+          : req.user.role_type === 'chief_editor'
+            ? 'chief_editors'
+            : 'employees';
+
+      await getPool().execute(
+        `
+          UPDATE ${table}
+          SET language = ?
+          WHERE id = ?
+        `,
+        [
+          value,
+          req.user.id
+        ]
+      );
+
+      res.json({
+        language: value
+      });
+
+    } catch (error) {
+      console.error(
+        'Preferred language error:',
+        error
+      );
+
+      return res.status(500).json({
+        error:
+          error.message ||
+          'Unable to save language.'
       });
     }
   }

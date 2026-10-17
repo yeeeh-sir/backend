@@ -1097,6 +1097,7 @@ async function init() {
       profile_image VARCHAR(500) DEFAULT NULL,
       profile_image_url VARCHAR(500) DEFAULT NULL,
       profile_image_public_id VARCHAR(255) DEFAULT NULL,
+      language VARCHAR(5) DEFAULT NULL,
       status VARCHAR(20) DEFAULT 'active',
       authToken VARCHAR(128) DEFAULT NULL,
       resetToken VARCHAR(128) DEFAULT NULL,
@@ -1123,6 +1124,7 @@ async function init() {
     profile_image VARCHAR(500) DEFAULT NULL,
     profile_image_url VARCHAR(500) DEFAULT NULL,
     profile_image_public_id VARCHAR(255) DEFAULT NULL,
+    language VARCHAR(5) DEFAULT NULL,
     status VARCHAR(20) DEFAULT 'active',
     authToken VARCHAR(128) DEFAULT NULL,
     resetToken VARCHAR(128) DEFAULT NULL,
@@ -1151,6 +1153,7 @@ async function init() {
       profile_image VARCHAR(500) DEFAULT NULL,
       profile_image_url VARCHAR(500) DEFAULT NULL,
       profile_image_public_id VARCHAR(255) DEFAULT NULL,
+      language VARCHAR(5) DEFAULT NULL,
       status VARCHAR(20) DEFAULT 'active',
       authToken VARCHAR(128) DEFAULT NULL,
       resetToken VARCHAR(128) DEFAULT NULL,
@@ -1472,6 +1475,32 @@ async function init() {
 
   console.log(
     "[database] Profile detail columns (department, bio) ready."
+  );
+
+  /* =======================================================
+     PREFERRED LANGUAGE MIGRATION
+     Stores the reader's selected site language on the account so the
+     choice follows the user across devices instead of living only in
+     the browser's localStorage.
+  ======================================================= */
+
+  const languageTables = [
+    "admins",
+    "chief_editors",
+    "employees",
+  ];
+
+  for (const table of languageTables) {
+    if (!(await columnExists(table, "language"))) {
+      await safeAlter(
+        `${table}.language`,
+        `ALTER TABLE ${table} ADD COLUMN \`language\` VARCHAR(5) DEFAULT NULL`
+      );
+    }
+  }
+
+  console.log(
+    "[database] Preferred language column ready."
   );
 
   /* =======================================================
