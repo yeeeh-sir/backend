@@ -1010,6 +1010,7 @@ async function init() {
     ["seo_keywords", "VARCHAR(500) DEFAULT NULL"],
     ["published_at", "DATETIME DEFAULT NULL"],
     ["amakuru_department", "VARCHAR(100) DEFAULT NULL"],
+    ["youtube_urls", "MEDIUMTEXT DEFAULT NULL"],
   ];
 
   for (const [column, definition] of postWorkflowColumns) {
@@ -1330,6 +1331,10 @@ async function init() {
     [
       "youtube_url",
       "VARCHAR(500) DEFAULT NULL",
+    ],
+    [
+      "youtube_urls",
+      "MEDIUMTEXT DEFAULT NULL",
     ],
     [
       "Author",

@@ -1,0 +1,2853 @@
+◇ injected env (15) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+[cache] No REDIS_URL configured — using per-instance in-memory cache (safe for a single backend; add REDIS_URL + ioredis for multi-instance).
+[uploads] Directory exists: C:\Rubavutoday\backend\uploads
+[server] Initializing database...
+[database] Initializing database...
+[database] Connecting to mysql-2bc3d6a4-tuyishimevalens142-1bcd.b.aivencloud.com:12546
+[database] Database: defaultdb
+[database] User: avnadmin
+[database] SSL: enabled
+[database] Successfully connected using verified TLS.
+[database] posts table ready.
+[database] notifications table ready.
+[database] media_library table ready.
+[database] admins table ready.
+[database] chief_editors table ready.
+[database] employees table ready.
+[database] permissions table ready.
+[database] employee_permissions table ready.
+[database] comments table ready.
+[database] comment_reactions table ready.
+[database] advertisements table ready.
+[database] Profile detail columns (department, bio) ready.
+[database] Post slugs normalized.
+[database] Index idx_posts_status already exists.
+[database] Index idx_posts_author already exists.
+[database] Index idx_posts_created already exists.
+[database] Index idx_posts_status_created already exists.
+[database] Index idx_posts_status_category already exists.
+[database] Index idx_posts_author_submitted_status already exists.
+[database] Index idx_posts_author_name_submitted_status already exists.
+[database] Index idx_comments_post_id already exists.
+[database] Index idx_comments_parent already exists.
+[database] Index idx_auth_token_admins already exists.
+[database] Index idx_auth_token_chief already exists.
+[database] Index idx_auth_token_emp already exists.
+[database] Index idx_ads_status already exists.
+[database] Performance indexes ready.
+[migration] categories -> utf8mb4: OK
+[database] categories table ready (seeded).
+[database] post_status_history table ready.
+[database] audit_log table ready.
+[database] daily_task_cycles table ready.
+[admin] Skipping default admin creation: no ADMIN_EMAIL / ADMIN_PASSWORD configured.
+[database] radio_items table ready.
+[database] Database initialization completed successfully.
+[server] Database initialization completed.
+[cloudinary] Cloud: zyxt9llj
+[cloudinary] API Key: 7426****
+[cloudinary] API Secret: LOADED
+[server] Upload directory: C:\Rubavutoday\backend\uploads
+Backend server is running on port 5000
+Uploads directory: C:\Rubavutoday\backend\uploads
+Health endpoint: /api/health
+Uploads endpoint: /uploads/
+[cloudinary] measured clock skew (ms): 76595414
+[request] GET /api/radio 200 383.4ms
+[request] GET /api/radio 200 2.1ms
+[request] POST /api/auth/login 200 1297.2ms
+[request] GET /api/notifications/unread-count 200 2016.2ms
+[request] GET /api/my-posts 200 2360.7ms
+[request] GET /api/radio 200 0.7ms
+[request] GET /api/notifications/unread-count 304 590.2ms
+[request] GET /api/radio 200 375.9ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 582.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 864.6ms
+[request] GET /api/radio 200 381.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 583.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 1012.2ms
+[request] GET /api/radio 200 508.9ms
+[request] GET /api/radio 200 401.3ms
+[request] GET /api/notifications/unread-count 304 1054.0ms
+[request] GET /api/radio 200 0.8ms
+[request] GET /api/notifications/unread-count 304 601.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 390.5ms
+[request] GET /api/notifications/unread-count 304 573.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 583.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 381.6ms
+[request] GET /api/notifications/unread-count 304 585.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 591.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 385.2ms
+[request] GET /api/notifications/unread-count 304 584.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 766.6ms
+[request] GET /api/radio 200 365.8ms
+[request] GET /api/notifications/unread-count 304 602.6ms
+[request] GET /api/notifications/unread-count 304 556.8ms
+[request] GET /api/tasks/my-performance 200 1841.1ms
+[request] GET /api/notifications 200 2077.3ms
+[request] GET /api/tasks/daily 200 2550.2ms
+[request] GET /api/notifications/unread-count 304 603.6ms
+[request] GET /api/my-posts 200 3590.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 392.6ms
+[request] GET /api/notifications/unread-count 304 585.2ms
+[request] GET /api/tasks/my-performance 200 631.8ms
+[request] GET /api/notifications 304 816.6ms
+[request] GET /api/notifications/unread-count 304 607.6ms
+[request] GET /api/tasks/daily 200 2108.0ms
+[request] GET /api/my-posts 304 2308.9ms
+[request] GET /api/radio 200 391.7ms
+[request] GET /api/notifications/unread-count 304 580.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 785.6ms
+[request] GET /api/radio 200 373.6ms
+[request] GET /api/notifications/unread-count 304 926.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 2265.3ms
+[request] GET /api/radio 200 411.3ms
+[request] GET /api/notifications/unread-count 304 615.7ms
+[request] GET /api/notifications/unread-count 304 621.4ms
+[request] GET /api/my-posts 304 5728.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 644.4ms
+[request] GET /api/radio 200 389.8ms
+[request] GET /api/notifications/unread-count 304 626.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 586.4ms
+[request] GET /api/radio 200 387.4ms
+[request] GET /api/notifications/unread-count 304 570.0ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 592.4ms
+[request] GET /api/radio 200 401.4ms
+[request] GET /api/notifications/unread-count 304 580.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 468.7ms
+[request] GET /api/notifications/unread-count 304 634.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 600.7ms
+[request] GET /api/radio 200 411.3ms
+[request] GET /api/notifications/unread-count 304 598.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 606.0ms
+[request] GET /api/radio 200 485.8ms
+[request] GET /api/notifications/unread-count 304 762.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 626.7ms
+[request] GET /api/radio 200 416.8ms
+[request] GET /api/notifications/unread-count 304 614.6ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 609.4ms
+[request] GET /api/radio 200 411.6ms
+[request] GET /api/notifications/unread-count 304 612.8ms
+[request] GET /api/radio 200 1.7ms
+[request] GET /api/notifications/unread-count 304 623.6ms
+[request] GET /api/radio 200 395.8ms
+[request] GET /api/notifications/unread-count 304 624.6ms
+[request] GET /api/radio 200 0.7ms
+[request] GET /api/notifications/unread-count 304 622.8ms
+[request] GET /api/radio 200 1231.9ms
+[request] GET /api/notifications/unread-count 304 2039.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 568.6ms
+[request] GET /api/radio 200 378.3ms
+[request] GET /api/notifications/unread-count 304 810.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 595.1ms
+[request] GET /api/radio 200 395.7ms
+[request] GET /api/notifications/unread-count 304 576.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 585.0ms
+[request] GET /api/radio 200 565.8ms
+[request] GET /api/notifications/unread-count 304 876.0ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 1174.3ms
+[request] GET /api/radio 200 506.6ms
+[request] GET /api/notifications/unread-count 304 791.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 1020.6ms
+[request] GET /api/radio 200 602.5ms
+[request] GET /api/notifications/unread-count 304 883.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 2316.6ms
+[request] GET /api/radio 200 535.2ms
+[request] GET /api/notifications/unread-count 304 920.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 896.0ms
+[request] GET /api/radio 200 584.9ms
+[request] GET /api/notifications/unread-count 304 1084.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 883.1ms
+[request] GET /api/radio 200 456.2ms
+[request] GET /api/notifications/unread-count 304 657.0ms
+[request] GET /api/notifications/unread-count 304 707.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/auth/me 304 466.8ms
+[request] GET /api/advertisements 304 244.1ms
+[request] GET /api/posts 200 5776.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 631.0ms
+[request] GET /api/radio 200 381.9ms
+[request] GET /api/posts/slug/tyla-agiye-kwishyurira-kaminuza-abakobwa-biga-umuziki 200 840.3ms
+[request] GET /api/comments/749?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 252.7ms
+[request] GET /api/posts/next?id=749 200 643.8ms
+[request] GET /api/posts/slug/salem-choir-adepr-kabuga-ikomeje-urugendo-rw-ivugabutumwa-mu-ndirimbo-nshya-yise-sinjye-uriho 200 737.2ms
+[request] GET /api/comments/748?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 241.3ms
+[request] GET /api/posts/next?id=748 200 737.5ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/posts 304 2534.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 738.9ms
+[request] GET /api/radio 200 420.1ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 634.6ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 445.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 595.3ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/auth/me 304 407.5ms
+[request] GET /api/notifications/unread-count 304 722.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 645.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 20342.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 765.8ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 760.6ms
+[request] GET /api/radio 200 499.5ms
+[request] GET /api/notifications 304 982.9ms
+[request] PUT /api/notifications/2222/read 200 1014.3ms
+[request] PUT /api/notifications/2214/read 200 763.9ms
+[request] GET /api/notifications/unread-count 200 2900.3ms
+[request] GET /api/notifications/unread-count 304 580.1ms
+[request] PUT /api/notifications/2149/read 200 744.1ms
+[request] GET /api/notifications/unread-count 304 587.6ms
+[request] GET /api/notifications/unread-count 304 758.0ms
+[request] PUT /api/notifications/2069/read 200 789.8ms
+[request] GET /api/notifications/unread-count 304 769.9ms
+[request] PUT /api/notifications/2064/read 200 2396.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/tasks/my-performance 200 742.4ms
+[request] GET /api/my-posts 200 2859.1ms
+[request] GET /api/notifications/unread-count 304 1399.6ms
+[request] GET /api/notifications 200 3853.2ms
+[request] GET /api/notifications/unread-count 304 598.4ms
+[request] GET /api/tasks/daily 200 4736.9ms
+[request] GET /api/notifications 304 1187.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 714.2ms
+[request] GET /api/radio 200 467.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 701.2ms
+[request] GET /api/radio 200 453.0ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 721.0ms
+[request] GET /api/radio 200 709.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 885.7ms
+[request] GET /api/tasks/my-performance 200 2229.9ms
+[request] GET /api/notifications 304 2264.2ms
+[request] GET /api/notifications/unread-count 304 1113.3ms
+[request] GET /api/tasks/daily 200 4000.5ms
+[request] GET /api/my-posts 304 4765.1ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 607.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 615.7ms
+[request] GET /api/radio 200 413.8ms
+[request] GET /api/radio 200 1.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 622.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 394.7ms
+[request] GET /api/notifications/unread-count 304 637.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 411.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 764.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 752.6ms
+[request] GET /api/radio 200 804.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 807.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 607.5ms
+[request] GET /api/radio 200 401.2ms
+[request] GET /api/notifications/unread-count 304 744.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 743.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/auth/me 304 492.3ms
+[request] GET /api/notifications/unread-count 304 915.0ms
+[request] GET /api/radio 200 514.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 751.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 737.5ms
+[request] GET /api/radio 200 492.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 742.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 485.7ms
+[request] GET /api/notifications/unread-count 304 744.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 498.3ms
+[request] GET /api/notifications/unread-count 304 753.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 500.8ms
+[request] GET /api/notifications/unread-count 304 906.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 805.2ms
+[request] GET /api/radio 200 490.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 833.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 751.6ms
+[request] GET /api/radio 200 563.7ms
+[request] GET /api/notifications/unread-count 304 791.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 750.2ms
+[request] GET /api/radio 200 503.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 753.5ms
+[request] GET /api/radio 200 496.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 611.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 621.9ms
+[request] GET /api/radio 200 402.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 595.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 707.7ms
+[request] GET /api/radio 200 396.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 733.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 614.4ms
+[request] GET /api/radio 200 417.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 628.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 776.9ms
+[request] GET /api/radio 200 396.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 770.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 785.1ms
+[request] GET /api/radio 200 0.8ms
+[request] GET /api/auth/me 304 503.0ms
+[request] GET /api/notifications/unread-count 304 810.1ms
+[request] GET /api/radio 200 0.9ms
+[request] GET /api/radio 200 517.6ms
+[request] GET /api/notifications/unread-count 304 784.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/advertisements 304 389.3ms
+[request] GET /api/auth/me 304 520.4ms
+[request] GET /api/posts 304 2694.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 391.8ms
+[request] GET /api/notifications/unread-count 304 567.7ms
+[request] GET /api/tasks/my-performance 200 777.7ms
+[request] GET /api/notifications 304 799.4ms
+[request] GET /api/notifications/unread-count 304 783.7ms
+[request] GET /api/tasks/daily 200 1961.3ms
+[request] GET /api/my-posts 200 3674.1ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 757.8ms
+[request] GET /api/radio 200 508.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 760.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 481.9ms
+[request] GET /api/notifications/unread-count 304 829.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 755.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 730.6ms
+[request] GET /api/radio 200 499.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 750.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 387.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 761.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 488.5ms
+[request] GET /api/notifications/unread-count 304 738.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 730.4ms
+[request] GET /api/radio 200 870.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 781.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 1888.2ms
+[request] GET /api/radio 200 741.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 794.1ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 674.0ms
+[request] GET /api/notifications/unread-count 304 1880.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 603.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 624.5ms
+[request] GET /api/notifications/unread-count 304 1285.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 721.9ms
+[request] GET /api/radio 200 417.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 598.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.7ms
+[request] GET /api/notifications/unread-count 304 606.4ms
+[request] GET /api/radio 200 393.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 611.5ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 394.1ms
+[request] GET /api/notifications/unread-count 304 599.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 710.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 418.5ms
+[request] GET /api/notifications/unread-count 304 614.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 399.7ms
+[request] GET /api/notifications/unread-count 304 587.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 614.5ms
+[request] GET /api/radio 200 1053.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 1871.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 408.1ms
+[request] GET /api/notifications/unread-count 304 601.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 590.7ms
+[request] GET /api/radio 200 869.9ms
+[request] GET /api/notifications/unread-count 304 616.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 618.2ms
+[request] GET /api/radio 200 394.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 596.7ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 407.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/auth/me 304 398.6ms
+[request] GET /api/auth/me 304 399.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 652.4ms
+[request] POST /api/auth/login 200 1140.6ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/auth/me 200 219.7ms
+[request] GET /api/comments 200 1000.5ms
+[request] GET /api/chief-editor/posts 200 16895.9ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/tasks/my-performance 200 634.3ms
+[request] GET /api/tasks/daily 200 2555.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 200 408.1ms
+[request] PUT /api/chief-editor/posts/755/approve 200 2875.3ms
+[request] PUT /api/chief-editor/posts/754/approve 200 2099.7ms
+[request] GET /api/radio 200 409.9ms
+[request] GET /api/radio 200 0.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 472.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 982.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 416.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 397.6ms
+[request] GET /api/notifications/unread-count 304 440.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 1.1ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 1185.8ms
+[request] GET /api/radio 200 534.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 408.4ms
+[request] GET /api/notifications/unread-count 304 394.6ms
+[request] GET /api/radio 200 398.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 422.5ms
+[request] GET /api/notifications/unread-count 304 392.0ms
+[request] GET /api/radio 200 394.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/auth/me 304 212.4ms
+[request] GET /api/comments 200 598.6ms
+[request] GET /api/chief-editor/posts 200 5732.1ms
+[request] GET /api/tasks/my-performance 200 404.9ms
+[request] GET /api/tasks/daily 200 1628.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 526.2ms
+[request] GET /api/radio 200 407.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 740.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 402.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 399.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 211.0ms
+[request] GET /api/comments 200 604.2ms
+[request] GET /api/chief-editor/posts 200 4270.6ms
+[request] GET /api/tasks/my-performance 200 434.8ms
+[request] GET /api/tasks/daily 200 1952.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 447.0ms
+[request] GET /api/notifications/unread-count 200 667.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 421.6ms
+[request] GET /api/radio 200 416.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 438.0ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 200 416.0ms
+[request] GET /api/radio 200 425.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 425.8ms
+[request] GET /api/notifications/unread-count 304 424.1ms
+[request] GET /api/radio 200 430.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 448.4ms
+[request] GET /api/radio 200 411.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 417.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 424.2ms
+[request] GET /api/radio 200 400.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 430.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 200 492.5ms
+[request] GET /api/notifications/unread-count 304 425.5ms
+[request] GET /api/radio 200 733.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 432.7ms
+[request] GET /api/auth/me 304 213.2ms
+[request] GET /api/radio 200 411.9ms
+[request] POST /api/auth/login 200 1742.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/auth/me 200 428.6ms
+[request] GET /api/notifications/unread-count 200 622.0ms
+[request] GET /api/notifications 200 914.3ms
+[request] GET /api/tasks/my-performance 200 1021.1ms
+[request] GET /api/notifications/unread-count 304 601.5ms
+[request] GET /api/my-posts 200 2603.6ms
+[request] GET /api/tasks/daily 200 2847.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 678.8ms
+[request] GET /api/radio 200 413.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 645.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 632.4ms
+[request] GET /api/radio 200 425.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 624.6ms
+[request] GET /api/radio 200 416.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 609.2ms
+[request] GET /api/notifications/unread-count 304 626.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 407.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 580.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 584.2ms
+[request] GET /api/radio 200 389.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 616.0ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 628.3ms
+[request] GET /api/auth/me 304 431.4ms
+[request] GET /api/radio 200 473.5ms
+[request] GET /api/notifications/unread-count 304 680.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 617.6ms
+[request] GET /api/radio 200 425.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 641.8ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 601.6ms
+[request] GET /api/radio 200 410.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 1100.6ms
+[request] GET /api/radio 200 404.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 610.3ms
+[request] GET /api/notifications/unread-count 304 626.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 411.2ms
+[request] GET /api/notifications/unread-count 304 593.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 607.2ms
+[request] GET /api/radio 200 420.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 586.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 610.4ms
+[request] GET /api/radio 200 405.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 612.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 389.1ms
+[request] GET /api/notifications/unread-count 304 995.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 639.2ms
+[request] GET /api/radio 200 397.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 830.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.9ms
+[request] GET /api/notifications/unread-count 304 600.9ms
+[request] GET /api/radio 200 381.9ms
+[request] GET /api/auth/me 304 721.4ms
+[request] GET /api/notifications/unread-count 304 617.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/auth/me 304 5423.5ms
+[request] GET /api/auth/me 304 1452.6ms
+[request] GET /api/notifications/unread-count 304 20438.1ms
+[request] POST /api/auth/login 200 892.9ms
+[request] GET /api/radio 200 527.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 200 1790.7ms
+[request] GET /api/notifications/unread-count 200 542.4ms
+[request] GET /api/comments 200 1097.6ms
+[request] GET /api/chief-editor/posts 200 5795.0ms
+[request] GET /api/tasks/my-performance 200 392.8ms
+[request] GET /api/tasks/daily 200 1512.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] PUT /api/chief-editor/posts/758/approve 200 2741.2ms
+[request] GET /api/notifications/unread-count 304 385.8ms
+[request] PUT /api/chief-editor/posts/757/approve 200 1918.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 381.3ms
+[request] PUT /api/chief-editor/posts/756/approve 200 1978.6ms
+[request] GET /api/notifications 200 577.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 401.9ms
+[request] PUT /api/notifications/2289/read 200 390.7ms
+[request] GET /api/notifications/unread-count 200 382.4ms
+[request] GET /api/my-posts 403 210.0ms
+[request] GET /api/notifications/unread-count 304 384.3ms
+[request] GET /api/notifications 200 569.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/my-posts 403 196.5ms
+[request] GET /api/notifications/unread-count 304 386.4ms
+[request] PUT /api/notifications/2289/read 200 566.2ms
+[request] GET /api/notifications/unread-count 304 383.6ms
+[request] GET /api/my-posts 403 216.0ms
+[request] GET /api/tasks/my-performance 200 423.1ms
+[request] GET /api/tasks/daily 200 1528.8ms
+[request] GET /api/notifications 304 1761.9ms
+[request] GET /api/notifications/unread-count 304 371.4ms
+[request] GET /api/notifications/unread-count 304 383.8ms
+[request] GET /api/radio 200 356.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 367.1ms
+[request] GET /api/radio 200 365.6ms
+[request] GET /api/notifications/unread-count 304 377.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 613.7ms
+[request] GET /api/notifications/unread-count 304 614.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 399.0ms
+[request] GET /api/notifications/unread-count 304 467.7ms
+[request] GET /api/radio 200 481.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 405.1ms
+[request] GET /api/comments 200 569.0ms
+[request] GET /api/chief-editor/posts 200 3167.0ms
+[request] GET /api/tasks/my-performance 200 392.0ms
+[request] GET /api/tasks/daily 200 1568.8ms
+[request] GET /api/notifications/unread-count 304 557.4ms
+[request] GET /api/radio 200 567.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/comments 200 581.3ms
+[request] GET /api/chief-editor/posts 304 2939.8ms
+[request] GET /api/tasks/my-performance 200 374.8ms
+[request] GET /api/tasks/daily 200 1561.7ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 381.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 371.6ms
+[request] GET /api/notifications/unread-count 304 406.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 507.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 397.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 387.8ms
+[request] GET /api/notifications/unread-count 304 381.6ms
+[request] GET /api/radio 200 394.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 381.2ms
+[request] GET /api/notifications/unread-count 304 374.4ms
+[request] GET /api/radio 200 386.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 383.8ms
+[request] GET /api/radio 200 373.3ms
+[request] GET /api/notifications/unread-count 304 501.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/auth/me 304 185.8ms
+[request] POST /api/auth/login 200 1248.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 200 389.5ms
+[request] GET /api/tasks/my-performance 200 577.5ms
+[request] GET /api/notifications/unread-count 200 569.7ms
+[request] GET /api/tasks/daily 200 1745.8ms
+[request] GET /api/my-posts 200 2179.7ms
+[request] GET /api/notifications 200 2246.6ms
+[request] GET /api/notifications/unread-count 304 547.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 389.9ms
+[request] GET /api/auth/me 304 394.3ms
+[request] GET /api/advertisements 304 205.5ms
+[request] GET /api/posts 200 2204.5ms
+[request] GET /api/notifications/unread-count 304 568.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/posts/slug/rubavu-ikamyo-yabuze-feri-isenya-amaduka-ihitana-abantu-barimo-umwarimu-n-umucuruzi-wari-umufana-wa-rayon-sports 200 757.8ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 187.7ms
+[request] GET /api/posts/next?id=758 200 591.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 586.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 370.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 577.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 548.3ms
+[request] GET /api/radio 200 394.9ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 568.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 594.6ms
+[request] GET /api/radio 200 395.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 579.2ms
+[request] GET /api/radio 200 396.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 568.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 500 26101408.8ms
+[request] GET /api/notifications/unread-count 500 11078.2ms
+[request] GET /api/radio 200 19269.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 200 1615.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 1709.5ms
+[request] GET /api/radio 200 368.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 1861.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 588.6ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 390.1ms
+[request] GET /api/notifications/unread-count 304 574.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 376.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 551.8ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 754.8ms
+[request] GET /api/radio 200 398.2ms
+[request] GET /api/notifications/unread-count 304 614.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 590.9ms
+[request] GET /api/radio 200 395.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 626.9ms
+[request] GET /api/radio 200 377.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 561.0ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 544.1ms
+[request] GET /api/radio 200 374.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 572.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 575.7ms
+[request] GET /api/radio 200 382.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 566.4ms
+[request] GET /api/radio 200 359.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 576.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 583.8ms
+[request] GET /api/radio 200 405.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 630.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 612.3ms
+[request] GET /api/radio 200 394.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 631.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 583.8ms
+[request] GET /api/radio 200 391.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 586.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 604.2ms
+[request] GET /api/radio 200 380.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 580.6ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 621.2ms
+[request] GET /api/radio 200 378.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 604.5ms
+[request] GET /api/radio 200 360.4ms
+[request] GET /api/notifications/unread-count 304 571.9ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 567.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 601.7ms
+[request] GET /api/radio 200 363.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 379.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 585.6ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 580.8ms
+[request] GET /api/radio 200 365.1ms
+[request] GET /api/notifications/unread-count 304 558.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/auth/me 304 395.5ms
+[request] GET /api/notifications/unread-count 304 550.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 429.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 361.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 377.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 367.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 404.6ms
+[404] No route matched: GET /main.a2b38186b80af5670850.hot-update.json
+[request] GET /main.a2b38186b80af5670850.hot-update.json 404 212.9ms
+[request] GET /api/radio 200 0.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 10642.5ms
+[request] GET /api/auth/me 304 2005.7ms
+[request] GET /api/advertisements 304 13079.7ms
+[request] GET /api/posts 304 14205.4ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 3506.0ms
+[request] GET /api/posts/next?id=758 304 3940.3ms
+[request] GET /api/posts/slug/rubavu-ikamyo-yabuze-feri-isenya-amaduka-ihitana-abantu-barimo-umwarimu-n-umucuruzi-wari-umufana-wa-rayon-sports 200 807.1ms
+[request] GET /api/radio 200 2161.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 1.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 17614.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 1510.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 399.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 415.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 375.6ms
+[request] GET /api/auth/me 304 380.9ms
+[request] GET /api/auth/me 304 397.5ms
+[request] GET /api/auth/me 304 388.0ms
+[request] GET /api/notifications/unread-count 304 1915.0ms
+[request] GET /api/auth/me 304 395.5ms
+[request] GET /api/notifications/unread-count 304 610.0ms
+[request] GET /api/auth/me 304 374.0ms
+[request] GET /api/auth/me 304 381.5ms
+[request] GET /api/my-posts 200 3134.5ms
+[request] GET /api/notifications/unread-count 304 608.0ms
+[request] GET /api/auth/me 304 392.2ms
+[request] GET /api/notifications/unread-count 304 628.8ms
+[request] GET /api/auth/me 304 367.0ms
+[request] GET /api/auth/me 304 819.8ms
+[request] GET /api/my-posts 304 1729.8ms
+[request] GET /api/notifications/unread-count 304 1169.4ms
+[request] GET /api/auth/me 304 380.5ms
+[request] GET /api/auth/me 304 386.9ms
+[request] GET /api/notifications/unread-count 304 593.6ms
+[request] GET /api/my-posts 304 922.6ms
+[request] GET /api/auth/me 304 429.3ms
+[request] GET /api/notifications/unread-count 304 629.6ms
+[request] GET /api/radio 200 0.7ms
+[request] GET /api/auth/me 304 426.2ms
+[request] GET /api/my-posts 304 1330.9ms
+[request] GET /api/auth/me 304 599.0ms
+[request] GET /api/notifications/unread-count 304 1031.0ms
+[request] GET /api/notifications/unread-count 304 628.0ms
+[request] GET /api/my-posts 304 1278.0ms
+[request] GET /api/notifications/unread-count 304 743.3ms
+[request] GET /api/notifications/unread-count 304 589.3ms
+[request] GET /api/my-posts 304 1042.3ms
+[request] GET /api/tasks/my-performance 200 1877.0ms
+[request] GET /api/notifications 304 2042.4ms
+[request] GET /api/notifications/unread-count 200 1982.5ms
+[request] GET /api/tasks/daily 200 3853.8ms
+[request] GET /api/notifications/unread-count 304 638.5ms
+[request] GET /api/my-posts 200 3068.9ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 574.0ms
+[request] GET /api/radio 200 386.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 599.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 389.8ms
+[request] GET /api/notifications/unread-count 304 1751.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 1086.8ms
+[request] GET /api/radio 200 378.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 571.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 653.8ms
+[request] GET /api/radio 200 412.9ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 587.2ms
+[request] GET /api/radio 200 378.8ms
+[request] GET /api/notifications/unread-count 304 625.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 708.1ms
+[request] GET /api/radio 200 512.6ms
+[request] GET /api/notifications/unread-count 304 670.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 592.7ms
+[request] GET /api/radio 200 406.1ms
+[request] GET /api/notifications/unread-count 304 576.0ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 600.5ms
+[request] GET /api/radio 200 375.7ms
+[request] GET /api/notifications/unread-count 304 613.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 625.3ms
+[request] GET /api/radio 200 413.6ms
+[request] GET /api/notifications/unread-count 304 885.2ms
+[request] GET /api/radio 200 382.3ms
+[request] GET /api/notifications/unread-count 304 690.6ms
+[request] GET /api/radio 200 407.8ms
+[request] GET /api/notifications/unread-count 304 570.4ms
+[request] GET /api/radio 200 449.3ms
+[request] GET /api/notifications/unread-count 304 896.8ms
+[request] GET /api/radio 200 381.3ms
+[request] GET /api/notifications/unread-count 304 617.3ms
+[request] GET /api/radio 200 447.9ms
+[request] GET /api/notifications/unread-count 304 625.1ms
+[request] GET /api/radio 200 1678.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 1180.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 51.7ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 441.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 585.9ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 393.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/auth/me 304 697.4ms
+[request] GET /api/notifications/unread-count 304 588.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 596.8ms
+[request] GET /api/radio 200 389.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 1097.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/auth/me 304 389.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 617.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 627.2ms
+[request] GET /api/radio 200 431.4ms
+[request] GET /api/notifications/unread-count 304 599.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 629.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 393.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 586.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 611.3ms
+[request] GET /api/radio 200 378.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 591.9ms
+[request] GET /api/radio 200 550.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 782.2ms
+[request] GET /api/radio 200 0.8ms
+[request] GET /api/notifications/unread-count 304 629.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 646.5ms
+[request] GET /api/radio 200 425.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 799.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 647.1ms
+[request] GET /api/radio 200 759.7ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 625.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 384.2ms
+[request] GET /api/notifications/unread-count 304 666.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 648.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 468.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 635.7ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 602.0ms
+[request] GET /api/radio 200 376.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 626.0ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 604.1ms
+[request] GET /api/notifications/unread-count 304 648.0ms
+[request] GET /api/radio 200 424.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 650.0ms
+[request] GET /api/advertisements 304 332.9ms
+[request] GET /api/posts 304 2674.6ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 629.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 636.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 857.4ms
+[request] GET /api/radio 200 636.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 630.8ms
+[request] GET /api/radio 200 6.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 627.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 428.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 666.6ms
+[request] GET /api/notifications/unread-count 304 674.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 647.0ms
+[request] GET /api/radio 200 421.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 586.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 575.3ms
+[request] GET /api/notifications/unread-count 304 597.5ms
+[request] GET /api/radio 200 383.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 590.1ms
+[request] GET /api/notifications/unread-count 304 597.2ms
+[request] GET /api/radio 200 381.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 611.8ms
+[request] GET /api/notifications/unread-count 304 617.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 643.7ms
+[request] GET /api/notifications/unread-count 304 627.5ms
+[request] GET /api/radio 200 499.4ms
+[request] GET /api/posts/slug/abacamanza-barindwi-n-abanditsi-b-inkiko-umunani-barahiriye-inshingano-nshya 200 1033.0ms
+[request] GET /api/posts 304 1754.5ms
+[request] GET /api/comments/756?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 350.8ms
+[request] GET /api/posts/next?id=756 200 919.3ms
+[request] GET /api/radio 200 1.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 612.5ms
+[request] GET /api/notifications/unread-count 304 651.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 445.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 627.7ms
+[request] GET /api/notifications/unread-count 304 647.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 498.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 619.4ms
+[request] GET /api/notifications/unread-count 304 753.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 689.2ms
+[request] GET /api/notifications/unread-count 304 555.0ms
+[request] GET /api/radio 200 831.0ms
+[request] GET /api/comments/756?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 206.7ms
+[request] GET /api/posts/next?id=756 304 706.8ms
+[request] GET /api/posts 304 1757.3ms
+[request] GET /api/comments/756?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 208.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 581.5ms
+[request] GET /api/notifications/unread-count 304 686.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 393.4ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 599.7ms
+[request] GET /api/notifications/unread-count 304 584.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/advertisements 304 198.9ms
+[request] GET /api/posts 304 1621.6ms
+[request] GET /api/radio 200 406.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 597.7ms
+[request] GET /api/notifications/unread-count 304 571.1ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/posts 200 34.5ms
+[request] GET /api/auth/me 304 397.0ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 217.0ms
+[request] GET /api/posts/slug/rubavu-ikamyo-yabuze-feri-isenya-amaduka-ihitana-abantu-barimo-umwarimu-n-umucuruzi-wari-umufana-wa-rayon-sports 200 987.8ms
+[request] GET /api/posts/next?id=758 304 865.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 557.6ms
+[request] GET /api/notifications/unread-count 304 587.2ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 204.9ms
+[request] GET /api/posts/next?id=758 304 644.4ms
+[request] GET /api/posts 304 1604.9ms
+[request] GET /api/radio 200 400.0ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 589.1ms
+[request] GET /api/notifications/unread-count 304 597.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/advertisements 304 210.4ms
+[request] GET /api/posts 200 1621.9ms
+[request] GET /api/radio 200 386.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 588.4ms
+[request] GET /api/notifications/unread-count 304 587.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/radio 200 417.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 571.0ms
+[request] GET /api/notifications/unread-count 304 572.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 563.6ms
+[request] GET /api/notifications/unread-count 304 577.7ms
+[request] GET /api/radio 200 478.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 599.2ms
+[request] GET /api/notifications/unread-count 304 577.1ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 409.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 567.2ms
+[request] GET /api/notifications/unread-count 304 555.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 363.9ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 605.4ms
+[request] GET /api/notifications/unread-count 304 567.1ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/radio 200 384.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 614.8ms
+[request] GET /api/notifications/unread-count 304 632.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 851.0ms
+[request] GET /api/notifications/unread-count 304 759.7ms
+[request] GET /api/radio 200 526.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 633.0ms
+[request] GET /api/notifications/unread-count 304 601.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 433.2ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/advertisements 200 198.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/posts 304 1553.3ms
+[request] GET /api/notifications/unread-count 304 618.6ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 618.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 626.9ms
+[request] GET /api/posts 304 1778.9ms
+[request] GET /api/radio 200 409.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 611.6ms
+[request] GET /api/comments/758?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 207.8ms
+[request] GET /api/posts/slug/rubavu-ikamyo-yabuze-feri-isenya-amaduka-ihitana-abantu-barimo-umwarimu-n-umucuruzi-wari-umufana-wa-rayon-sports 200 553.5ms
+[request] GET /api/posts/next?id=758 200 619.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 607.5ms
+[request] GET /api/radio 200 422.6ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 638.0ms
+[request] GET /api/notifications/unread-count 304 641.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 631.6ms
+[request] GET /api/radio 200 417.2ms
+[request] GET /api/radio 200 96.8ms
+[request] GET /api/notifications/unread-count 304 688.0ms
+[request] GET /api/radio 200 1.0ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/advertisements 304 207.7ms
+[request] GET /api/notifications/unread-count 304 3224.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/posts 200 3854.0ms
+[request] GET /api/notifications/unread-count 304 818.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 605.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 605.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 611.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 615.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 665.7ms
+[request] GET /api/radio 200 407.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 638.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 748.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 639.8ms
+[request] GET /api/radio 200 416.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 677.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/posts/slug/abaregwa-barimo-kazungu-na-prof-emile-b-bavuze-ko-igihe-cyo-gufungwa-cyarenze-mbere-y-uko-ikirego-gishyirwa-muri-system 200 639.9ms
+[request] GET /api/comments/757?device_id=dv-mtcfnqxc-ij6a3wwcuf 200 214.6ms
+[request] GET /api/posts 304 1575.1ms
+[request] GET /api/posts/next?id=757 200 616.9ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 619.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 646.6ms
+[request] GET /api/radio 200 430.0ms
+[request] GET /api/advertisements 304 220.4ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 634.1ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 892.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 425.7ms
+[request] GET /api/notifications/unread-count 304 570.3ms
+[request] GET /api/posts 304 1668.6ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 575.2ms
+[request] GET /api/notifications/unread-count 304 635.2ms
+[request] GET /api/radio 200 376.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 591.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 656.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 376.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 621.9ms
+[request] GET /api/notifications/unread-count 304 558.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/advertisements 304 200.4ms
+[request] GET /api/posts 200 1679.1ms
+[request] GET /api/radio 200 410.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 3582.4ms
+[request] GET /api/notifications/unread-count 304 641.9ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 626.1ms
+[request] GET /api/radio 200 419.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 923.5ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 635.5ms
+[request] GET /api/radio 200 412.7ms
+[request] GET /api/notifications/unread-count 304 569.7ms
+[request] GET /api/radio 200 1.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 571.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 402.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 556.1ms
+[request] GET /api/notifications/unread-count 304 550.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/advertisements 304 198.2ms
+[request] GET /api/posts 304 1540.7ms
+[request] GET /api/radio 200 378.2ms
+[request] GET /api/auth/me 304 419.3ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 618.2ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 629.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 428.3ms
+[request] GET /api/notifications/unread-count 304 582.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 603.0ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 589.7ms
+[request] GET /api/radio 200 368.1ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 583.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 587.2ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 389.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 768.3ms
+[request] GET /api/notifications/unread-count 304 612.7ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 608.2ms
+[request] GET /api/notifications/unread-count 304 600.9ms
+[request] GET /api/radio 200 405.9ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/advertisements 304 294.8ms
+[request] GET /api/notifications/unread-count 304 630.5ms
+[request] GET /api/posts 304 1579.6ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/notifications/unread-count 304 595.0ms
+[request] GET /api/radio 200 0.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 26.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 25.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 15.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 3.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 572.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/notifications/unread-count 304 582.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 180.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 161.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 35.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[request] GET /api/radio 200 446.6ms
+[request] GET /api/radio 200 0.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 258.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 4.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 7.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 423.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 4.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 236.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 8.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 3.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 15.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 13.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 16.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 3.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 38.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 12.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 4.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 16.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.2ms
+[request] GET /api/notifications/unread-count 304 615.7ms
+[request] GET /api/radio 200 0.6ms
+[request] GET /api/notifications/unread-count 304 589.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 58.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 69.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 28.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 5.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 18.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 20.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 15.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 42.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.6ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.5ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 3.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.0ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 2.1ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.3ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.9ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 1.4ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.7ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 598.1ms
+[request] GET /api/radio 200 363.8ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 578.8ms
+[request] GET /api/radio 200 1.7ms
+[request] GET /api/notifications/unread-count 304 581.1ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 382.0ms
+[request] GET /api/notifications/unread-count 304 611.2ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 601.1ms
+[request] GET /api/notifications/unread-count 304 670.4ms
+[request] GET /api/radio 200 0.2ms
+[404] No route matched: POST /api/translate
+[request] POST /api/translate 404 0.8ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/radio 200 383.7ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms
+[request] GET /api/notifications/unread-count 304 638.2ms
+[request] GET /api/notifications/unread-count 304 583.8ms
+[request] GET /api/radio 200 0.5ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.4ms
+[request] GET /api/radio 200 0.3ms

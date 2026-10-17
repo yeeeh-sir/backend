@@ -230,4 +230,103 @@ async function chatSirGPT(message) {
   return answer.trim();
 }
 
-module.exports = { chatWithGemini, chatSirGPT };
+/* =========================================================
+   TRANSLATION — news-ready translation via Gemini
+   ========================================================= */
+
+const TRANSLATION_LANGUAGES = {
+  rw: 'Kinyarwanda',
+  en: 'English',
+  fr: 'French',
+  sw: 'Kiswahili',
+};
+
+const TRANSLATION_INSTRUCTION = `You are a professional news translator for Rubavu Today, a Rwandan news website.
+You receive a JSON array of strings and must translate every item into the target language.
+
+RULES:
+1. Return ONLY a valid JSON array of translated strings — no markdown, no code fences, no explanations.
+2. The output array MUST contain exactly the same number of items, in the same order, as the input.
+3. Preserve names of people and places, numbers, dates, measurements, URLs and placeholders such as {count} exactly as written.
+4. Keep the original meaning, tone and journalistic style. Do not add, remove or summarize information.
+5. If an item is a single word or a short label, translate it naturally and concisely.`;
+
+function parseTranslatedArray(raw) {
+  const text = String(raw || '').trim();
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    /* fall through to extraction */
+  }
+
+  const first = text.indexOf('[');
+  const last = text.lastIndexOf(']');
+
+  if (first !== -1 && last > first) {
+    try {
+      const parsed = JSON.parse(text.slice(first, last + 1));
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return null;
+}
+
+async function translateTexts({ texts, target, source = 'rw' }) {
+  if (!genai) {
+    throw new Error('Gemini API is not configured. Set GEMINI_API_KEY in .env');
+  }
+
+  const list = Array.isArray(texts) ? texts.map((item) => String(item ?? '')) : [];
+
+  if (list.length === 0) return [];
+
+  const targetName = TRANSLATION_LANGUAGES[target];
+  const sourceName = TRANSLATION_LANGUAGES[source] || source;
+
+  if (!targetName || target === source) {
+    return list;
+  }
+
+  const response = await genai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: `${TRANSLATION_INSTRUCTION}
+
+Translate from ${sourceName} to ${targetName}.
+
+INPUT:
+${JSON.stringify(list)}`,
+          },
+        ],
+      },
+    ],
+    config: {
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const parsed = parseTranslatedArray(response.text);
+
+  if (!parsed) {
+    console.error('[geminiService] translateTexts: could not parse Gemini response');
+    return list;
+  }
+
+  return list.map((original, index) => {
+    const value = parsed[index];
+    return typeof value === 'string' && value.trim() ? value : original;
+  });
+}
+
+module.exports = { chatWithGemini, chatSirGPT, translateTexts, TRANSLATION_LANGUAGES };

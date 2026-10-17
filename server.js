@@ -11,7 +11,7 @@ const cloudinary = require('./config/cloudinary');
 const { Readable } = require('stream');
 const https = require('https');
 
-const { chatWithGemini, chatSirGPT } = require('./services/geminiService');
+const { chatWithGemini, chatSirGPT, translateTexts } = require('./services/geminiService');
 
 const {
   withCache,
@@ -26,7 +26,12 @@ const {
   requiresAmakuruDepartmentOnUpdate,
 } = require('./services/amakuruDepartments');
 
-const { createPublicRateLimiter } = require('./middleware/rateLimiter');
+const {
+  validatePostImageFiles,
+  COMPRESS_IMAGE_URL,
+} = require('./services/imageValidation');
+
+const { createPublicRateLimiter, getClientIp } = require('./middleware/rateLimiter');
 const {
   getVisitorAnalytics,
   getAdminAnalytics,
@@ -136,7 +141,7 @@ const PUBLIC_CACHE_TTL = {
 
 const PUBLIC_POST_DETAIL_FIELDS = `
   id, title, slug, category, description, summary, subtitle, excerpt,
-  image, images, content_blocks, createdDate, published_at, youtube_url,
+  image, images, content_blocks, createdDate, published_at, youtube_url, youtube_urls,
   Author, author_profile_image, author_profile_image_url, tags, location,
   views, seo_title, seo_description, seo_keywords, status
 `;
@@ -383,6 +388,91 @@ app.post('/api/ai/chat', async (req, res) => {
 });
 
 /* =========================================================
+   TRANSLATION — Gemini-powered (public, rate limited)
+========================================================= */
+
+const TRANSLATE_SUPPORTED = ['rw', 'en', 'fr', 'sw'];
+const TRANSLATE_MAX_ITEMS = 40;
+const TRANSLATE_MAX_ITEM_LENGTH = 5000;
+const translateBuckets = new Map();
+const TRANSLATE_WINDOW_MS = 60 * 1000;
+const TRANSLATE_MAX_PER_WINDOW = 120;
+
+function translateRateLimited(req) {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  let entry = translateBuckets.get(ip);
+
+  if (!entry || now - entry.windowStart >= TRANSLATE_WINDOW_MS) {
+    entry = { windowStart: now, count: 0 };
+    translateBuckets.set(ip, entry);
+  }
+
+  entry.count += 1;
+  return entry.count > TRANSLATE_MAX_PER_WINDOW;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of translateBuckets) {
+    if (now - entry.windowStart >= TRANSLATE_WINDOW_MS) {
+      translateBuckets.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+app.post('/api/translate', async (req, res) => {
+  if (translateRateLimited(req)) {
+    return res.status(429).json({ error: 'Too many translation requests. Please try again later.' });
+  }
+
+  const target = String(req.body?.target || '').trim().toLowerCase();
+  const source = String(req.body?.source || 'rw').trim().toLowerCase();
+  const rawTexts = Array.isArray(req.body?.texts)
+    ? req.body.texts
+    : typeof req.body?.text === 'string'
+      ? [req.body.text]
+      : [];
+
+  if (!TRANSLATE_SUPPORTED.includes(target)) {
+    return res.status(400).json({ error: 'Unsupported target language.' });
+  }
+
+  const texts = rawTexts.map((item) => String(item ?? ''));
+
+  if (texts.length === 0) {
+    return res.status(400).json({ error: 'No texts provided.' });
+  }
+
+  if (texts.length > TRANSLATE_MAX_ITEMS) {
+    return res.status(400).json({ error: `Too many texts. Maximum ${TRANSLATE_MAX_ITEMS} per request.` });
+  }
+
+  if (texts.some((item) => item.length > TRANSLATE_MAX_ITEM_LENGTH)) {
+    return res.status(400).json({ error: 'One or more texts are too long.' });
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(503).json({
+      error: 'Translation service is not configured.',
+      code: 'AI_NOT_CONFIGURED'
+    });
+  }
+
+  if (target === 'rw' || target === source) {
+    return res.json({ translations: texts });
+  }
+
+  try {
+    const translations = await translateTexts({ texts, target, source });
+    return res.json({ translations });
+  } catch (error) {
+    console.error('[translate] Gemini request failed:', error.message || error);
+    return res.status(502).json({ error: 'Translation failed. Please try again.' });
+  }
+});
+
+/* =========================================================
    SIR GPT � GENERAL-PURPOSE AI (Gemini)
 ========================================================= */
 
@@ -618,6 +708,110 @@ const profileUpload = multer({
     files: 1
   }
 });
+
+/* =========================================================
+   POST IMAGE UPLOAD (Admin / Chief Editor / Employee)
+   ---------------------------------------------------------
+   A post may carry at most 2 images and each image may be at
+   most 120 KB. These limits are enforced here so they apply to
+   every role and cannot be bypassed from the browser.
+========================================================= */
+
+const POST_IMAGE_MAX_BYTES = 120 * 1024; // 120 KB
+const POST_MAX_IMAGES = 2;
+
+const ARTICLE_TITLE_MAX_LENGTH = 119;
+
+const ARTICLE_TITLE_MAX_MESSAGE =
+  `Title must be ${ARTICLE_TITLE_MAX_LENGTH} characters or fewer.`;
+
+const postUpload = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: {
+    /* busboy rejects a file the moment its size reaches `fileSize`, so we
+       pass POST_IMAGE_MAX_BYTES + 1 to allow a file of exactly 120 KB and
+       reject anything larger. validatePostImages() below is the exact,
+       authoritative check. */
+    fileSize: POST_IMAGE_MAX_BYTES + 1,
+    /* `files` caps the combined total across every field, so a post can
+       never carry more than POST_MAX_IMAGES images no matter how the
+       browser splits them between `image` and `images`. */
+    files: POST_MAX_IMAGES
+  }
+});
+
+/* Wrap multer so upload failures return the same clear, post-specific
+   validation messages the frontend shows instead of the generic
+   "file too large" message from the global error handler. */
+function postImageUpload(req, res, next) {
+  postUpload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'images', maxCount: POST_MAX_IMAGES }
+  ])(req, res, (error) => {
+    if (error) {
+      if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: `Each image must be 120 KB or smaller. Compress your image here: ${COMPRESS_IMAGE_URL}`
+          });
+        }
+
+        if (
+          error.code === 'LIMIT_FILE_COUNT' ||
+          error.code === 'LIMIT_UNEXPECTED_FILE'
+        ) {
+          return res.status(400).json({
+            error: 'You can upload at most 2 images per post.'
+          });
+        }
+
+        return res.status(400).json({
+          error: 'Image upload error: ' + error.message
+        });
+      }
+
+      if (/image files are allowed/i.test(error.message || '')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      return next(error);
+    }
+
+    const incomingFiles = [
+      ...((req.files && req.files.image) || []),
+      ...((req.files && req.files.images) || [])
+    ];
+
+    const contentError = validatePostImageFiles(incomingFiles);
+
+    if (contentError) {
+      return res.status(400).json({ error: contentError });
+    }
+
+    return next();
+  });
+}
+
+/* Defensive re-validation for the rare case multer is bypassed or its
+   limits drift. Returns a clear message for both failure modes. */
+function validatePostImages(files) {
+  const list = Array.isArray(files) ? files.filter(Boolean) : [];
+
+  if (list.length > POST_MAX_IMAGES) {
+    return 'You can upload at most 2 images per post.';
+  }
+
+  const tooLarge = list.find(
+    (file) => file && Number(file.size) > POST_IMAGE_MAX_BYTES
+  );
+
+  if (tooLarge) {
+    return `Each image must be 120 KB or smaller. Compress your image here: ${COMPRESS_IMAGE_URL}`;
+  }
+
+  return validatePostImageFiles(list);
+}
 
 /* =========================================================
    CLOUDINARY CLOCK SKEW
@@ -1848,6 +2042,7 @@ app.get(
           p.image,
           p.createdDate,
           p.youtube_url,
+          p.youtube_urls,
           p.Author,
           p.author_profile_image,
           p.status,
@@ -3692,10 +3887,7 @@ app.put(
 app.post(
   '/api/posts',
   requireAuth,
-  upload.fields([
-    { name: 'image', maxCount: 1 },
-    { name: 'images', maxCount: 11 }
-  ]),
+  postImageUpload,
   async (req, res) => {
     try {
       const {
@@ -3704,6 +3896,10 @@ app.post(
         amakuru_department,
         description,
         youtube_url,
+        youtube_url_1,
+        youtube_url_2,
+        youtube_urls,
+        youtubeUrls,
         author,
         tags,
         location,
@@ -3715,6 +3911,26 @@ app.post(
         seo_keywords,
         status
       } = req.body;
+
+      let youtubeUrlsList = [];
+      try {
+        youtubeUrlsList = extractYouTubeUrlsFromRequest(req.body);
+      } catch (e) {
+        return res.status(400).json({ error: e.message || 'Invalid YouTube URL.' });
+      }
+      const youtubeUrlsValue = normalizeYouTubeUrlsForStorage(youtubeUrlsList);
+      const youtubeUrlValue = youtubeUrlsList[0] || youtube_url || null;
+
+      const incomingImages = [
+        ...((req.files && req.files.image) || []),
+        ...((req.files && req.files.images) || [])
+      ];
+
+      const postImageError = validatePostImages(incomingImages);
+
+      if (postImageError) {
+        return res.status(400).json({ error: postImageError });
+      }
 
       const isEmployee =
         req.user.role_type ===
@@ -3760,6 +3976,12 @@ app.post(
         return res.status(400).json({
           error:
             'Title, category, and description are required.'
+        });
+      }
+
+      if (String(title).length > ARTICLE_TITLE_MAX_LENGTH) {
+        return res.status(400).json({
+          error: ARTICLE_TITLE_MAX_MESSAGE
         });
       }
 
@@ -3979,6 +4201,7 @@ app.post(
               content_blocks,
               createdDate,
               youtube_url,
+              youtube_urls,
               Author,
               author_profile_image,
               status,
@@ -3996,7 +4219,7 @@ app.post(
               approved_at,
               author_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
           `,
           [
             String(title).trim(),
@@ -4010,7 +4233,8 @@ app.post(
             imagesJson,
             blocksJson,
             new Date(),
-            youtube_url || null,
+            youtubeUrlValue || null,
+            youtubeUrlsValue ? JSON.stringify(youtubeUrlsValue) : null,
             authorName,
             authorProfileImage,
             postStatus,
@@ -4130,15 +4354,23 @@ app.post(
 app.put(
   '/api/posts/:id',
   requireAuth,
-  upload.fields([
-    { name: 'image', maxCount: 1 },
-    { name: 'images', maxCount: 11 }
-  ]),
+  postImageUpload,
   async (req, res) => {
     try {
       const {
         id
       } = req.params;
+
+      const incomingImages = [
+        ...((req.files && req.files.image) || []),
+        ...((req.files && req.files.images) || [])
+      ];
+
+      const postImageError = validatePostImages(incomingImages);
+
+      if (postImageError) {
+        return res.status(400).json({ error: postImageError });
+      }
 
       const {
         title,
@@ -4420,11 +4652,44 @@ app.put(
         ? JSON.stringify(blocks)
         : null;
 
-      const updatedYoutubeUrl =
-        youtube_url !==
-          undefined
-          ? youtube_url || null
-          : existing.youtube_url;
+      const hasYouTubeUpdate =
+        req.body.youtube_url !== undefined ||
+        req.body.youtubeUrl !== undefined ||
+        req.body.youtube_url_1 !== undefined ||
+        req.body.youtube_url1 !== undefined ||
+        req.body.youtubeUrl1 !== undefined ||
+        req.body.youtube_url_2 !== undefined ||
+        req.body.youtube_url2 !== undefined ||
+        req.body.youtubeUrl2 !== undefined ||
+        req.body.youtube_urls !== undefined ||
+        req.body.youtubeUrls !== undefined ||
+        req.body.youtube_videos !== undefined;
+
+      let existingYoutubeUrls = null;
+      try {
+        const parsedExistingUrls = existing.youtube_urls
+          ? JSON.parse(existing.youtube_urls)
+          : null;
+        existingYoutubeUrls = Array.isArray(parsedExistingUrls)
+          ? parsedExistingUrls
+          : null;
+      } catch {
+        existingYoutubeUrls = null;
+      }
+
+      let updatedYoutubeUrls = existingYoutubeUrls;
+      let updatedYoutubeUrl = existing.youtube_url || null;
+
+      if (hasYouTubeUpdate) {
+        let youtubeUrlsList = [];
+        try {
+          youtubeUrlsList = extractYouTubeUrlsFromRequest(req.body);
+        } catch (e) {
+          return res.status(400).json({ error: e.message || 'Invalid YouTube URL.' });
+        }
+        updatedYoutubeUrls = normalizeYouTubeUrlsForStorage(youtubeUrlsList);
+        updatedYoutubeUrl = updatedYoutubeUrls ? updatedYoutubeUrls[0] : null;
+      }
 
       const updatedCategory = category !== undefined && String(category).trim()
         ? String(category).trim()
@@ -4574,6 +4839,12 @@ app.put(
         ? String(title).trim()
         : existing.title;
 
+      if (String(incomingTitle).length > ARTICLE_TITLE_MAX_LENGTH) {
+        return res.status(400).json({
+          error: ARTICLE_TITLE_MAX_MESSAGE
+        });
+      }
+
       const nextSlug = existing.slug || await ensureUniqueSlug(incomingTitle, Number(id));
       const normalizedUpdatedSlug = String(incomingTitle).trim()
         ? await ensureUniqueSlug(incomingTitle, Number(id))
@@ -4628,6 +4899,7 @@ app.put(
             images = ?,
             content_blocks = ?,
             youtube_url = ?,
+            youtube_urls = ?,
             Author = ?,
             status = ?,
             tags = ?,
@@ -4664,6 +4936,10 @@ app.put(
           blocksJson,
 
           updatedYoutubeUrl,
+
+          updatedYoutubeUrls
+            ? JSON.stringify(updatedYoutubeUrls)
+            : null,
 
           updatedAuthor,
 
@@ -4951,12 +5227,13 @@ const EMPLOYEE_ALL_POSTS_SELECT = `
   p.amakuru_department,
   p.status,
   p.image,
-  p.youtube_url,
-  p.Author,
-  p.Author AS author_name,
-  p.author_profile_image,
-  p.createdDate,
-  SUBSTRING(p.description, 1, 600) AS description
+      p.youtube_url,
+      p.youtube_urls,
+      p.Author,
+      p.Author AS author_name,
+      p.author_profile_image,
+      p.createdDate,
+      SUBSTRING(p.description, 1, 600) AS description
 `;
 
 app.get(
@@ -5389,6 +5666,7 @@ app.get(
           p.image,
           p.createdDate,
           p.youtube_url,
+          p.youtube_urls,
           p.Author,
           p.author_profile_image,
           p.status,
@@ -7165,8 +7443,8 @@ function parseYoutubeVideoId(url) {
   } catch {
     return null;
   }
-  const host = parsed.hostname.replace(/^(www\.|m\.)/, '');
-  if (host !== 'youtube.com' && host !== 'youtu.be') {
+  const host = parsed.hostname.replace(/^(www\.|m\.)/i, '');
+  if (host !== 'youtube.com' && host !== 'youtu.be' && host !== 'youtube-nocookie.com') {
     return null;
   }
   let videoId = null;
@@ -7176,11 +7454,56 @@ function parseYoutubeVideoId(url) {
   } else {
     videoId = parsed.searchParams.get('v');
     if (!videoId) {
-      const pathMatch = parsed.pathname.match(/\/(?:embed|shorts|live)\/([\w-]{11})/);
+      const pathMatch = parsed.pathname.match(/\/(?:embed|shorts|live|v)\/([\w-]{11})/);
       videoId = pathMatch ? pathMatch[1] : null;
     }
   }
   return videoId && /^[\w-]{11}$/.test(videoId) ? videoId : null;
+}
+
+function isValidYouTubeUrl(url) {
+  return parseYoutubeVideoId(url) !== null;
+}
+
+function extractYouTubeUrlsFromRequest(body = {}) {
+  const urls = [];
+  const candidates = [];
+
+  if (body.youtube_url !== undefined) candidates.push(body.youtube_url);
+  if (body.youtubeUrl !== undefined) candidates.push(body.youtubeUrl);
+  if (body.youtube_url_1 !== undefined) candidates.push(body.youtube_url_1);
+  if (body.youtubeUrl1 !== undefined) candidates.push(body.youtubeUrl1);
+  if (body.youtube_url1 !== undefined) candidates.push(body.youtube_url1);
+  if (body.youtube_url_2 !== undefined) candidates.push(body.youtube_url_2);
+  if (body.youtubeUrl2 !== undefined) candidates.push(body.youtubeUrl2);
+  if (body.youtube_url2 !== undefined) candidates.push(body.youtube_url2);
+  if (Array.isArray(body.youtube_urls)) candidates.push(...body.youtube_urls);
+  if (Array.isArray(body.youtubeUrls)) candidates.push(...body.youtubeUrls);
+  if (Array.isArray(body.youtube_videos)) candidates.push(...body.youtube_videos);
+
+  for (let i = 0; i < candidates.length; i++) {
+    const value = String(candidates[i] || '').trim();
+    if (!value) continue;
+    if (!isValidYouTubeUrl(value)) {
+      throw new Error('Invalid YouTube URL.');
+    }
+    urls.push(value);
+    if (urls.length >= 2) break;
+  }
+
+  return urls;
+}
+
+function normalizeYouTubeUrlsForStorage(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return null;
+  const result = [];
+  for (let i = 0; i < urls.length && result.length < 2; i++) {
+    const value = String(urls[i] || '').trim();
+    if (value && isValidYouTubeUrl(value)) {
+      result.push(value);
+    }
+  }
+  return result.length > 0 ? result.slice(0, 2) : null;
 }
 
 function isValidHttpUrl(value) {
